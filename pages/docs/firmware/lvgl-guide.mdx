@@ -2,6 +2,8 @@
 
 **Professional GUI for Big Brother - LVGL vs TFT_eSPI**
 
+**Hardware:** Waveshare ESP32-S3 + DollaTek 2.8" ILI9341 TFT Touch
+
 ---
 
 ## 📊 TFT_eSPI vs LVGL Comparison
@@ -79,7 +81,7 @@ lv_obj_add_style(btn, &bruce_style_aggressive, 0);
 
 ---
 
-## 🚀 LVGL Setup for ESP32-2432S028R
+## 🚀 LVGL Setup for Waveshare ESP32-S3 + DollaTek ILI9341
 
 ### Step 1: Install LVGL Library
 
@@ -89,7 +91,7 @@ lv_obj_add_style(btn, &bruce_style_aggressive, 0);
 2. Search for "LVGL" by kisvegabor
 3. Install **LVGL version 9.2** (latest)
 4. Also install:
-   - TFT_eSPI (for display driver)
+   - TFT_eSPI (for display driver - configure for ILI9341!)
    - XPT2046_Touchscreen (for touch)
 
 **PlatformIO (recommended for larger projects):**

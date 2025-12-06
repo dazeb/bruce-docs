@@ -2,6 +2,8 @@
 
 **Big Brother gets a BIG SCREEN**
 
+**Hardware:** Waveshare ESP32-S3 + DollaTek 2.8" ILI9341 TFT Touch Display
+
 ```
            />
          //      "Step aside, Flipper. Watch this."
@@ -33,18 +35,25 @@
 
 ## 🏗️ Hardware Architecture
 
-### Core System: ESP32-2432S028R Touchscreen Module
+### Core System: Waveshare ESP32-S3 + DollaTek ILI9341 Display
 
-**This is Bruce's brain and face in one package:**
+**Bruce's powerful brain with a professional face:**
 
 ```
 ┌─────────────────────────────────────────────┐
-│  ESP32-2432S028R TOUCHSCREEN MODULE         │
+│  WAVESHARE ESP32-S3-WROOM-1                 │
+│  Primary Controller (Brain)                 │
+│  • 240MHz dual-core                         │
+│  • 16MB Flash + 8MB PSRAM                   │
+│  • WiFi 2.4GHz + BLE 5.0                    │
+│  • Type-C programming                       │
 │                                              │
+│  Connected via SPI to:                      │
 │  ┌──────────────────────────────────────┐  │
-│  │  2.8" ILI9341 TFT LCD                │  │
+│  │  DollaTek 2.8" ILI9341 TFT Touch     │  │
+│  │  (Breadboard Module)                 │  │
 │  │  240 x 320 pixels                    │  │
-│  │  Resistive Touch                     │  │
+│  │  XPT2046 Resistive Touch             │  │
 │  │  ┌────────────────────────────────┐ │  │
 │  │  │                                │ │  │
 │  │  │   🦈 BRUCE                     │ │  │
@@ -57,13 +66,8 @@
 │  │  │   Status: LOCKED               │ │  │
 │  │  │                                │ │  │
 │  │  └────────────────────────────────┘ │  │
+│  │  + SD Card Slot                    │  │
 │  └──────────────────────────────────────┘  │
-│                                              │
-│  Built-in ESP32:                            │
-│  • WiFi 2.4GHz                              │
-│  • Bluetooth                                │
-│  • GPIO exposed on headers                  │
-│  • USB-C programming                        │
 └─────────────────────────────────────────────┘
 ```
 
@@ -71,12 +75,15 @@
 
 ```
 ┌────────────────────────────────────────────────────────┐
-│ PRIMARY: ESP32-2432S028R (Touchscreen)                 │
-│ • Main controller & GUI                                │
-│ • User interface (touch controls)                      │
-│ • System coordinator                                   │
+│ PRIMARY: Waveshare ESP32-S3-WROOM-1                    │
+│ • 240MHz dual-core, 16MB Flash, 8MB PSRAM              │
+│ • Main controller & system coordinator                 │
+│ • Connects to DollaTek ILI9341 display via SPI         │
 │ • RF module control                                    │
 └──────────────┬─────────────────────────────────────────┘
+               │
+               ├─ SPI (Display) ──► DollaTek 2.8" ILI9341 TFT Touch
+               │                     └─ 240×320 GUI with touch controls
                │
                ├─ SPI1 ──► CC1101 (Sub-GHz 433MHz)
                │            └─ Car fobs, garage doors, weather
@@ -95,32 +102,33 @@
 │ • Standalone LoRa operations                           │
 │ • Built-in 0.96" OLED                                  │
 │ • Meshtastic capable                                   │
-│ • Optional WiFi link to touchscreen                    │
+│ • Optional WiFi link to primary ESP32-S3               │
 └────────────────────────────────────────────────────────┘
 ```
 
 ### Why This Architecture Dominates
 
-**1. Touchscreen ESP32 as Primary = Superior UX**
-- Rich GUI with icons, buttons, graphs
-- Real-time spectrum analyzer visualization
-- Touch controls (no button mashing)
-- Status at a glance
+**1. ESP32-S3 Brain + Separate Display = Ultimate Power**
+- ESP32-S3: 240MHz dual-core powerhouse with 8MB PSRAM
+- DollaTek ILI9341: Professional touchscreen (breadboard-friendly)
+- Modular design: Easy to prototype and debug
+- Display has built-in SD card slot for data logging
 
 **2. ESP32-C6 as WiFi 6 Co-Processor = Future-Proof**
 - Offloads WiFi 6 operations
 - BLE 5.3 long-range scanning
 - Thread/Zigbee IoT protocols
-- Keeps primary ESP32 focused on GUI
+- Keeps primary ESP32-S3 focused on RF and GUI
 
 **3. Dedicated LoRa Board = Standalone Capability**
 - DollaTek ESP32 runs Meshtastic independently
 - Can mesh with other LoRa nodes
 - Built-in display for field use
-- WiFi links back to main touchscreen when in range
+- WiFi links back to main ESP32-S3 when in range
 
 **4. Modular RF = No Bus Conflicts**
-- Each RF module on separate SPI bus or board
+- Each RF module on separate SPI bus
+- Breadboard-friendly for prototyping
 - Hot-swappable configurations
 - Zero crashes (Bruce doesn't crash)
 
@@ -225,63 +233,83 @@
 
 ---
 
-## 🔧 Pin Assignments: ESP32-2432S028R
+## 🔧 Pin Assignments: Waveshare ESP32-S3 + DollaTek ILI9341
 
-### Built-in TFT Display (Already Connected!)
+### DollaTek ILI9341 Display Connection (via SPI)
 ```
-TFT_MISO = 12
-TFT_MOSI = 13
-TFT_SCLK = 14
-TFT_CS   = 15
-TFT_DC   = 2
-TFT_RST  = -1  // Not used
-TFT_BL   = 21  // Backlight
+Display Pin → ESP32-S3 Pin
+VCC        → 5V or 3.3V (module has voltage regulator)
+GND        → GND
+CS         → GPIO 10
+RESET      → GPIO 9 (or 3.3V for always-on)
+DC/RS      → GPIO 8
+SDI/MOSI   → GPIO 11 (SPI MOSI)
+SCK        → GPIO 12 (SPI SCK)
+LED        → 3.3V (backlight always on) or GPIO for PWM control
+SDO/MISO   → GPIO 13 (SPI MISO, if reading from display)
 ```
 
-### Touch Controller (Already Connected!)
+### DollaTek XPT2046 Touch Controller (via SPI)
 ```
-TOUCH_CS = 33
-TOUCH_IRQ = 36
+Touch Pin  → ESP32-S3 Pin
+T_CLK      → GPIO 12 (shared SPI SCK)
+T_CS       → GPIO 14
+T_DIN      → GPIO 11 (shared SPI MOSI)
+T_DO       → GPIO 13 (shared SPI MISO)
+T_IRQ      → GPIO 15 (optional interrupt)
+```
+
+### SD Card on Display Module (Optional)
+```
+SD Pin     → ESP32-S3 Pin
+SD_CS      → GPIO 16
+SD_MOSI    → GPIO 11 (shared SPI)
+SD_MISO    → GPIO 13 (shared SPI)
+SD_SCK     → GPIO 12 (shared SPI)
 ```
 
 ### Available GPIO for RF Modules
 ```
-Available pins on ESP32-2432S028R:
-GPIO 0, 4, 16, 17, 22, 23, 25, 26, 27, 32, 34, 35
+Available pins on Waveshare ESP32-S3:
+GPIO 1-7, 17-21, 35-48 (many options!)
+Recommended for RF:
+- GPIO 5, 6, 7 for CC1101 (SPI + CS + GDO0)
+- GPIO 17, 18 for nRF24 (CE + CS)
+- GPIO 19, 20 for I2C (ESP32-C6)
 ```
 
 ### Recommended RF Module Pinout
 
 **CC1101 (SPI) - Sub-GHz:**
 ```
-CC1101_MOSI = 23  // SPI MOSI (shared with nRF24)
-CC1101_MISO = 19  // SPI MISO (shared with nRF24)
-CC1101_SCK  = 18  // SPI SCK  (shared with nRF24)
-CC1101_CS   = 5   // Chip Select (unique)
-CC1101_GDO0 = 4   // Interrupt pin
-CC1101_GDO2 = 16  // Optional
+CC1101_MOSI = 5   // SPI MOSI (can share with nRF24)
+CC1101_MISO = 6   // SPI MISO (can share with nRF24)
+CC1101_SCK  = 7   // SPI SCK  (can share with nRF24)
+CC1101_CS   = 4   // Chip Select (unique)
+CC1101_GDO0 = 3   // Interrupt pin
+CC1101_GDO2 = 2   // Optional
 ```
 
 **nRF24L01+ PA/LNA (SPI) - 2.4GHz:**
 ```
-NRF24_MOSI = 23  // SPI MOSI (shared with CC1101)
-NRF24_MISO = 19  // SPI MISO (shared with CC1101)
-NRF24_SCK  = 18  // SPI SCK  (shared with CC1101)
-NRF24_CS   = 17  // Chip Select (unique)
-NRF24_CE   = 22  // Chip Enable
+NRF24_MOSI = 5   // SPI MOSI (shared with CC1101)
+NRF24_MISO = 6   // SPI MISO (shared with CC1101)
+NRF24_SCK  = 7   // SPI SCK  (shared with CC1101)
+NRF24_CS   = 18  // Chip Select (unique)
+NRF24_CE   = 17  // Chip Enable
 ```
 
 **ESP32-C6 (I2C) - WiFi 6 Co-Processor:**
 ```
-I2C_SDA = 27
-I2C_SCL = 26
+I2C_SDA = 19
+I2C_SCL = 20
 C6_ADDR = 0x20  // I2C slave address
 ```
 
 **Flipper Zero (UART) - Optional:**
 ```
-UART_TX = 1   // ESP32 TX → Flipper RX
-UART_RX = 3   // ESP32 RX → Flipper TX
+UART_TX = 43  // ESP32-S3 TX → Flipper RX
+UART_RX = 44  // ESP32-S3 RX → Flipper TX
 UART_BAUD = 115200
 ```
 
@@ -292,18 +320,35 @@ UART_BAUD = 115200
 ### Phase 1: Touchscreen GUI (TODAY!)
 
 **Hardware:**
-- ESP32-2432S028R touchscreen (you have it!)
+- Waveshare ESP32-S3-WROOM-1 (you have it!)
+- DollaTek 2.8" ILI9341 TFT Touch display (you have it!)
+- Breadboard
+- Jumper wires
 - USB-C cable
+
+**Wiring:**
+1. Connect DollaTek ILI9341 to ESP32-S3 using pin assignments above
+2. Double-check SPI connections (MOSI, MISO, SCK)
+3. Verify power connections (5V or 3.3V - module auto-regulates)
 
 **Software:**
 ```cpp
 #include <TFT_eSPI.h>  // Display library
 #include <XPT2046_Touchscreen.h>  // Touch library
 
+// Configure TFT_eSPI User_Setup.h for ILI9341 driver first!
+
+TFT_eSPI tft = TFT_eSPI();
+
 // Bruce's GUI initialization
 void setup() {
+    Serial.begin(115200);
+    Serial.println("🦈 BRUCE: Initializing...");
+
     tft.init();
     tft.setRotation(0);  // Portrait mode
+    tft.fillScreen(TFT_BLACK);
+
     draw_bruce_bootscreen();
     delay(2000);
     draw_main_interface();
@@ -320,12 +365,14 @@ void draw_bruce_bootscreen() {
     tft.println("Big Brother");
     tft.setCursor(20, 160);
     tft.println("Mode: ACTIVE");
+
+    Serial.println("🦈 BRUCE: Display initialized!");
 }
 ```
 
 **Time:** 2-3 hours
 **Cost:** £0
-**Result:** Bruce boots with touchscreen GUI!
+**Result:** Bruce boots with professional touchscreen GUI!
 
 ---
 
@@ -526,8 +573,9 @@ void receiveEvent(int bytes) {
 
 ## 📦 Parts You Already Have
 
-✅ ESP32-2432S028R Touchscreen - **DELIVERED**
-✅ Waveshare ESP32-C6 WiFi 6 - **DELIVERED**
+✅ Waveshare ESP32-S3-WROOM-1 (Primary Controller) - **DELIVERED**
+✅ DollaTek 2.8" ILI9341 TFT Touch Display - **DELIVERED**
+✅ Waveshare ESP32-C6 WiFi 6 (x2) - **DELIVERED**
 ✅ DollaTek ESP32 LoRa SX1262 - **DELIVERED**
 ✅ CC1101 433MHz - **DELIVERED**
 ✅ nRF24L01+ PA/LNA (x2) - **DELIVERED**
@@ -540,35 +588,37 @@ void receiveEvent(int bytes) {
 
 ## 🚀 Next Steps
 
-1. **Flash ESP32-2432S028R with touchscreen GUI**
+1. **Wire DollaTek ILI9341 to Waveshare ESP32-S3**
    - Install TFT_eSPI library
-   - Configure for ILI9341 display
-   - Upload Bruce bootscreen
+   - Configure for ILI9341 driver with custom pinout
+   - Upload Bruce bootscreen test code
 
 2. **Connect CC1101 module**
-   - Wire to SPI pins
-   - Make antenna
+   - Wire to separate SPI pins (GPIO 5,6,7)
+   - Make 17.3cm antenna from wire
    - Test Sub-GHz RX/TX
 
 3. **Add nRF24 for 2.4GHz**
-   - Share SPI bus
-   - Test long-range
+   - Share SPI bus with CC1101
+   - Test long-range capability
 
 4. **Program ESP32-C6 as I2C slave**
+   - Connect via I2C (GPIO 19/20)
    - WiFi 6 operations
    - BLE 5.3 scanning
 
-5. **Flash DollaTek with Meshtastic**
+5. **Flash DollaTek LoRa with Meshtastic**
    - Standalone LoRa node
-   - Optional WiFi link
+   - Optional WiFi link to main ESP32-S3
 
 **Bruce is ready to dominate. Let's build him.**
 
 ---
 
 **Project Status:** Ready to Build
-**Display:** 🦈 2.8" TOUCHSCREEN (Professional AF)
+**Controller:** Waveshare ESP32-S3-WROOM-1 (240MHz, 16MB+8MB)
+**Display:** 🦈 DollaTek 2.8" ILI9341 TFT Touch (Professional AF)
 **Cost:** £0 (you have everything!)
 **Intimidation Level:** Maximum
 
-**Big brother doesn't do tiny screens. Big brother goes BIG.**
+**Big brother doesn't mess with all-in-one boards. Big brother builds MODULAR.**

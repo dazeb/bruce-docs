@@ -1,8 +1,27 @@
-# BRUCE Project Changelog >
+# BRUCE Project Changelog
 
 **Repository**: https://github.com/dazeb/bruce
 **Project**: BRUCE (Big Brother Ultimate Communication Equipment)
 **Tagline**: "When your Dolphin needs a Great White"
+
+---
+
+## 2025-12-06 16:45:00
+- **Files**: nextra/pages/docs/* (multiple documentation files)
+- **Changes**: Corrected all references from ESP32-2432S028R (CYD) to actual hardware: Waveshare ESP32-S3 + DollaTek ILI9341 display
+- **Files Updated**:
+  - docs/getting-started/project-overview.mdx
+  - docs/hardware/bom.mdx
+  - docs/hardware/inventory.mdx
+  - docs/build-guides/touchscreen-build.mdx
+  - docs/firmware/touchscreen-setup.mdx (complete rewrite)
+  - docs/firmware/lvgl-guide.mdx
+- **Impact**: Documentation now accurately reflects the modular build approach with ESP32-S3 controller + separate display module
+- **Technical Details**:
+  - ESP32-2432S028R was an all-in-one board (ESP32 + display integrated)
+  - Actual build uses Waveshare ESP32-S3-WROOM-1 (primary controller) + DollaTek 2.8" ILI9341 TFT Touch (breadboard module)
+  - Modular approach provides more power (ESP32-S3 vs ESP32), better prototyping, and flexibility
+- **Status**: ✅ Complete - All Nextra documentation corrected
 
 ---
 
