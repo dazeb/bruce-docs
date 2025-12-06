@@ -67,6 +67,33 @@ Power Rails:
 
 ### Wiring - Phase 1
 
+```mermaid
+graph LR
+    subgraph "Breadboard"
+        ESP[ESP32-S3 DevKit - USB powered]
+        LED1[Status LED - GPIO2 + 330Ω]
+        LED2[Activity LED - GPIO4 + 330Ω]
+        CAP1[100nF Ceramic]
+        CAP2[10µF Electrolytic]
+    end
+
+    subgraph "Flipper Zero"
+        FLIP_RX[Pin 2: RX]
+        FLIP_TX[Pin 3: TX]
+        FLIP_GND[Pin 7/8: GND]
+    end
+
+    ESP -->|GPIO17 TX| FLIP_RX
+    ESP -->|GPIO16 RX| FLIP_TX
+    ESP -->|GND| FLIP_GND
+    ESP --> LED1
+    ESP --> LED2
+    ESP --> CAP1
+    ESP --> CAP2
+
+    style ESP fill:#f96,stroke:#333,stroke-width:2px
+    style FLIP_RX fill:#6cf,stroke:#333,stroke-width:2px
+```
 
 ### Parts - Phase 1
 - 1x ESP32-S3 DevKit (with USB-C)
@@ -122,6 +149,51 @@ Breadboard 1 - Expanded
 
 ### Wiring - Phase 2
 
+```mermaid
+graph TB
+    subgraph "ESP32-S3 SPI1"
+        ESP[ESP32-S3]
+        SCK[GPIO12 - SCK]
+        MISO[GPIO13 - MISO]
+        MOSI[GPIO11 - MOSI]
+        CS[GPIO5 - CS]
+        GDO0[GPIO6 - GDO0]
+        GDO2[GPIO7 - GDO2]
+    end
+
+    subgraph "CC1101 Module"
+        CC[CC1101 433MHz]
+        CC_VCC[VCC - 3.3V]
+        CC_GND[GND]
+        CC_SCK[SCK]
+        CC_MISO[MISO]
+        CC_MOSI[MOSI]
+        CC_CS[CSN]
+        CC_GDO0[GDO0]
+        CC_GDO2[GDO2]
+        CC_ANT[Antenna]
+    end
+
+    subgraph "Power"
+        VCC[3.3V Rail]
+        GND[GND Rail]
+        CAP[100nF Cap]
+    end
+
+    SCK --> CC_SCK
+    MISO --> CC_MISO
+    MOSI --> CC_MOSI
+    CS --> CC_CS
+    GDO0 --> CC_GDO0
+    GDO2 --> CC_GDO2
+    VCC --> CC_VCC
+    GND --> CC_GND
+    CC_VCC --> CAP
+    CAP --> GND
+
+    style ESP fill:#f96,stroke:#333,stroke-width:2px
+    style CC fill:#f99,stroke:#333,stroke-width:2px
+```
 
 ### Parts Added - Phase 2
 - 1x CC1101 module (433MHz or 315/868/915MHz)
@@ -186,6 +258,37 @@ I2C Bus with Pull-ups:
 
 ### Wiring - Phase 3
 
+```mermaid
+graph TB
+    subgraph "ESP32-S3 I2C0"
+        ESP[ESP32-S3]
+        SDA[GPIO21 - SDA]
+        SCL[GPIO22 - SCL]
+    end
+
+    subgraph "Pull-up Resistors"
+        PU1[4.7kΩ SDA to 3.3V]
+        PU2[4.7kΩ SCL to 3.3V]
+    end
+
+    subgraph "I2C Devices"
+        OLED[OLED SSD1306 - Addr: 0x3C]
+        BME[BME680 - Addr: 0x76]
+        IMU[MPU9250 - Addr: 0x68]
+    end
+
+    SDA --> PU1
+    SCL --> PU2
+    SDA --> OLED
+    SCL --> OLED
+    SDA --> BME
+    SCL --> BME
+    SDA --> IMU
+    SCL --> IMU
+
+    style ESP fill:#f96,stroke:#333,stroke-width:2px
+    style OLED fill:#ff9,stroke:#333,stroke-width:2px
+```
 
 ### Parts Added - Phase 3
 - 1x Second breadboard (830 tie-points)
@@ -251,6 +354,43 @@ Breadboard 1 - Further Expanded
 
 ### Wiring - Phase 4
 
+```mermaid
+graph TB
+    subgraph "ESP32-S3 SPI2 Bus"
+        ESP[ESP32-S3]
+        SCK[GPIO18 - SCK]
+        MISO[GPIO19 - MISO]
+        MOSI[GPIO23 - MOSI]
+    end
+
+    subgraph "nRF24L01+ PA/LNA"
+        NRF[nRF24 Module]
+        NRF_CS[GPIO25 - CS]
+        NRF_CE[GPIO24 - CE]
+        NRF_IRQ[GPIO28 - IRQ]
+        NRF_CAP[10µF + 100nF caps - VERY IMPORTANT!]
+    end
+
+    subgraph "SX1276 LoRa"
+        LORA[LoRa Module]
+        LORA_CS[GPIO26 - CS]
+        LORA_RST[GPIO29 - RST]
+        LORA_DIO0[GPIO30 - DIO0]
+    end
+
+    SCK --> NRF
+    SCK --> LORA
+    MISO --> NRF
+    MISO --> LORA
+    MOSI --> NRF
+    MOSI --> LORA
+    NRF_CS --> NRF
+    LORA_CS --> LORA
+
+    style NRF fill:#99f,stroke:#333,stroke-width:2px
+    style LORA fill:#9f9,stroke:#333,stroke-width:2px
+    style NRF_CAP fill:#f66,stroke:#333,stroke-width:3px
+```
 
 ### Parts Added - Phase 4
 - 1x nRF24L01+ module with PA/LNA
@@ -536,7 +676,7 @@ Once breadboard prototype is working:
 5. **ESD protection** - Touch grounded metal before handling boards
 6. **RF safety** - Don't transmit without antenna (damages PA)
 7. **Polarity** - Check electrolytic capacitor polarity (+ and -)
-8. **Heat** - Some components may get warm (normal if under 60°C)
+8. **Heat** - Some components may get warm (normal if <60°C)
 
 ---
 
