@@ -1,4 +1,5 @@
-import { useConfig, type DocsThemeConfig } from 'nextra-theme-docs'
+import { useConfig } from 'nextra-theme-docs'
+import type { DocsThemeConfig } from 'nextra-theme-docs'
 
 const config: DocsThemeConfig = {
   logo: (
@@ -11,11 +12,6 @@ const config: DocsThemeConfig = {
     link: 'https://github.com/dazeb/esp32-flipper-devboard'
   },
   docsRepositoryBase: 'https://github.com/dazeb/esp32-flipper-devboard/tree/main',
-  useNextSeoProps() {
-    return {
-      titleTemplate: '%s – BRUCE Documentation'
-    }
-  },
   head: () => {
     const { title } = useConfig()
     return (
@@ -27,34 +23,18 @@ const config: DocsThemeConfig = {
       </>
     )
   },
-  primaryHue: {
-    dark: 204,
-    light: 212
-  },
-  primarySaturation: {
-    dark: 80,
-    light: 100
-  },
-  sidebar: {
-    defaultMenuCollapseLevel: 1,
-    toggleButton: true
-  },
-  toc: {
-    backToTop: true
-  },
   editLink: {
-    text: 'Edit this page on GitHub →'
+    component: ({ children, filePath }) => (
+      <a href={`https://github.com/dazeb/esp32-flipper-devboard/tree/main/${filePath}`} target="_blank" rel="noopener noreferrer">
+        Edit this page on GitHub →
+      </a>
+    )
   },
   feedback: {
-    content: 'Question? Give us feedback →',
-    labels: 'feedback'
-  },
-  navigation: {
-    prev: true,
-    next: true
+    content: 'Question? Give us feedback →'
   },
   footer: {
-    text: (
+    content: (
       <div style={{ width: '100%', textAlign: 'center' }}>
         <p style={{ marginBottom: '8px', fontWeight: 'bold' }}>
           "When your Dolphin needs a Great White" 🦈
@@ -65,13 +45,6 @@ const config: DocsThemeConfig = {
       </div>
     )
   },
-  gitTimestamp: ({ timestamp }) => (
-    <>Last updated on {timestamp.toLocaleDateString()}</>
-  ),
-  darkMode: true,
-  nextThemes: {
-    defaultTheme: 'dark'
-  }
 }
 
 export default config

@@ -1,0 +1,239 @@
+# Pin Assignment Reference
+
+## Primary ESP32 Pinout
+
+### Communication Interfaces
+
+#### UART to Flipper Zero
+
+| Pin    | Function | Direction | Description               |
+| ------ | -------- | --------- | ------------------------- |
+| GPIO16 | RX       | Input     | Receive from Flipper Zero |
+| GPIO17 | TX       | Output    | Transmit to Flipper Zero  |
+
+#### I2C Bus (Master)
+
+| Pin    | Function | Notes                 |
+| ------ | -------- | --------------------- |
+| GPIO21 | SDA      | 4.7kΩ pull-up to 3.3V |
+| GPIO22 | SCL      | 4.7kΩ pull-up to 3.3V |
+
+#### SPI Bus (Master) - Optional
+
+| Pin    | Function | Description              |
+| ------ | -------- | ------------------------ |
+| GPIO5  | CS       | Chip Select (active low) |
+| GPIO18 | SCK      | SPI Clock                |
+| GPIO19 | MISO     | Master In Slave Out      |
+| GPIO23 | MOSI     | Master Out Slave In      |
+
+### Status Indicators
+
+| Pin    | Function     | Color | Description          |
+| ------ | ------------ | ----- | -------------------- |
+| GPIO2  | Power/Status | Green | Board ready          |
+| GPIO4  | Activity     | Blue  | Communication active |
+| GPIO15 | Error        | Red   | Error condition      |
+
+### Control Signals
+
+| Pin    | Function       | Description                          |
+| ------ | -------------- | ------------------------------------ |
+| GPIO0  | BOOT           | Boot mode select (pull low to flash) |
+| GPIO25 | User Button    | General purpose input                |
+| GPIO26 | IRQ to Flipper | Optional interrupt line              |
+
+### Reserved Pins
+
+| Pin      | Function | Notes                              |
+| -------- | -------- | ---------------------------------- |
+| GPIO1    | TX0      | USB Serial (debugging)             |
+| GPIO3    | RX0      | USB Serial (debugging)             |
+| GPIO6-11 | Flash    | Connected to SPI flash, DO NOT USE |
+
+## Secondary ESP32 Pinout
+
+### Communication Interface
+
+#### I2C Bus (Slave)
+
+| Pin    | Function | Notes      |
+| ------ | -------- | ---------- |
+| GPIO21 | SDA      | Slave mode |
+| GPIO22 | SCL      | Slave mode |
+
+### Status Indicators
+
+| Pin   | Function   | Description        |
+| ----- | ---------- | ------------------ |
+| GPIO2 | Status LED | Activity indicator |
+
+### Available GPIO (Expansion)
+
+| Pin    | Function | Notes                           |
+| ------ | -------- | ------------------------------- |
+| GPIO13 | User I/O | Available for sensors/actuators |
+| GPIO12 | User I/O | Available for sensors/actuators |
+| GPIO14 | User I/O | Available for sensors/actuators |
+| GPIO27 | User I/O | Available for sensors/actuators |
+| GPIO32 | ADC1_CH4 | Analog input capable            |
+| GPIO33 | ADC1_CH5 | Analog input capable            |
+| GPIO34 | ADC1_CH6 | Input only                      |
+| GPIO35 | ADC1_CH7 | Input only                      |
+
+## Flipper Zero GPIO Header
+
+### Standard Pinout
+
+```
+     ┌─────────────────┐
+     │  Flipper Zero   │
+     │                 │
+┌────┴─────────────────┴────┐
+│ 1: 3.3V                   │
+│ 2: PC3 (USART1_RX)        │
+│ 3: PC1 (USART1_TX)        │
+│ 4: PC0 (GPIO)             │
+│ 5: PB3 (GPIO)             │
+│ 6: PB2 (GPIO)             │
+│ 7: GND                    │
+│ 8: GND                    │
+└───────────────────────────┘
+```
+
+### Mapping to Primary ESP32
+
+| Flipper Pin | Flipper Function | ESP32 Pin | ESP32 Function |
+| ----------- | ---------------- | --------- | -------------- |
+| 1           | 3.3V             | 3.3V      | Power          |
+| 2           | PC3 (RX)         | GPIO17    | UART TX        |
+| 3           | PC1 (TX)         | GPIO16    | UART RX        |
+| 4           | PC0              | GPIO26    | IRQ/Status     |
+| 5           | PB3              | -         | Reserved       |
+| 6           | PB2              | -         | Reserved       |
+| 7           | GND              | GND       | Ground         |
+| 8           | GND              | GND       | Ground         |
+
+## I2C Address Map
+
+| Device      | Address   | Description              |
+| ----------- | --------- | ------------------------ |
+| Primary     | Master    | No address (master only) |
+| Secondary 1 | 0x10      | First secondary ESP32    |
+| Secondary 2 | 0x11      | Second secondary ESP32   |
+| Reserved    | 0x12-0x1F | Future expansion         |
+| Sensors     | 0x20+     | External I2C sensors     |
+
+## Pin Constraints & Notes
+
+### Boot Mode Pins
+
+- **GPIO0**: Must be HIGH for normal boot, LOW for flash mode
+- **GPIO2**: Must be floating or HIGH during boot
+- **GPIO15**: Must be LOW during boot
+
+### Strapping Pins
+
+These pins have pull-up/down resistors and affect boot behavior:
+
+- GPIO0, GPIO2, GPIO5, GPIO12, GPIO15
+
+**Recommendation**: Avoid using these for critical functions or add isolation circuits.
+
+### Input-Only Pins
+
+These pins can only be used as inputs (no pull-up/down):
+
+- GPIO34, GPIO35, GPIO36, GPIO39
+
+### ADC2 Limitations
+
+ADC2 pins cannot be used when WiFi is active:
+
+- GPIO0, GPIO2, GPIO4, GPIO12-15, GPIO25-27
+
+**Recommendation**: Use ADC1 pins (GPIO32-39) for analog sensing.
+
+## Power Pins
+
+| Pin  | Function     | Max Current | Notes                       |
+| ---- | ------------ | ----------- | --------------------------- |
+| 3.3V | Power supply | 500mA       | From regulator or USB       |
+| 5V   | USB power    | 500mA       | Only when USB connected     |
+| GND  | Ground       | -           | Multiple GND pins available |
+| EN   | Enable       | -           | Pull LOW to reset           |
+
+## Programming Pins
+
+### Serial Programming
+
+| Pin         | Function           |
+| ----------- | ------------------ |
+| GPIO1 (TX0) | USB Serial TX      |
+| GPIO3 (RX0) | USB Serial RX      |
+| EN          | Reset (active low) |
+| GPIO0       | Boot mode select   |
+
+### JTAG (Advanced)
+
+| Pin    | Function |
+| ------ | -------- |
+| GPIO12 | TDI      |
+| GPIO13 | TCK      |
+| GPIO14 | TMS      |
+| GPIO15 | TDO      |
+
+## Example Configurations
+
+### Configuration 1: Minimal
+
+- UART to Flipper (GPIO16, GPIO17)
+- I2C to one secondary (GPIO21, GPIO22)
+- Status LED (GPIO2)
+
+### Configuration 2: Full Featured
+
+- UART to Flipper (GPIO16, GPIO17)
+- I2C to multiple secondaries (GPIO21, GPIO22)
+- SPI expansion (GPIO5, GPIO18, GPIO19, GPIO23)
+- 3x Status LEDs (GPIO2, GPIO4, GPIO15)
+- IRQ line to Flipper (GPIO26)
+- User button (GPIO25)
+
+### Configuration 3: Sensor Hub
+
+- UART to Flipper (GPIO16, GPIO17)
+- I2C bus for sensors and secondaries (GPIO21, GPIO22)
+- Analog inputs (GPIO32, GPIO33)
+- Digital sensors (GPIO13, GPIO14, GPIO27)
+
+## Wiring Best Practices
+
+1. **Keep UART lines short** - minimize trace length and interference
+2. **Use pull-ups on I2C** - 4.7kΩ to 3.3V on both SDA and SCL
+3. **Decouple power pins** - 100nF ceramic + 10µF electrolytic near each ESP32
+4. **Common ground** - ensure all devices share common ground
+5. **Level shifting** - use if interfacing with 5V devices
+6. **Current limiting** - always use resistors with LEDs (typically 330Ω)
+
+## Quick Reference Card
+
+```
+╔═══════════════════════════════════════╗
+║  PRIMARY ESP32 QUICK REFERENCE        ║
+╠═══════════════════════════════════════╣
+║ Flipper UART:  RX=16, TX=17          ║
+║ I2C Bus:       SDA=21, SCL=22        ║
+║ Status LED:    GPIO2                  ║
+║ Boot Button:   GPIO0 (hold for flash)║
+╚═══════════════════════════════════════╝
+
+╔═══════════════════════════════════════╗
+║  SECONDARY ESP32 QUICK REFERENCE      ║
+╠═══════════════════════════════════════╣
+║ I2C Address:   0x10 (change in code) ║
+║ I2C Bus:       SDA=21, SCL=22        ║
+║ Status LED:    GPIO2                  ║
+║ Free GPIO:     13,14,27,32,33,34,35  ║
+╚═══════════════════════════════════════╝
+```

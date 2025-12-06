@@ -1,0 +1,549 @@
+# Bruce Display Rendering Research
+## How to Draw Images on LCD Display - Lessons from Flipper Zero
+
+### Research Summary
+
+This document summarizes research into the Flipper Zero firmware's display rendering system to inform how we can draw Bruce the shark mascot on our ESP32 dev board's LCD display.
+
+---
+
+## Flipper Zero Canvas API Overview
+
+The Flipper Zero uses a **Canvas-based drawing API** for its monochrome OLED display (128x64 pixels). This provides an excellent model for our Bruce character display.
+
+### Key Canvas Drawing Functions
+
+Based on the [official Flipper Zero canvas.h documentation](https://developer.flipper.net/flipperzero/doxygen/canvas_8h.html):
+
+#### 1. **Icon/Bitmap Drawing**
+
+```c
+// Basic icon drawing
+void canvas_draw_icon(Canvas* canvas, int32_t x, int32_t y, const Icon* icon);
+
+// Advanced icon with rotation
+void canvas_draw_icon_ex(Canvas* canvas, int32_t x, int32_t y, const Icon* icon, IconRotation rotation);
+
+// XBM bitmap drawing (monochrome)
+void canvas_draw_xbm(Canvas* canvas, int32_t x, int32_t y, size_t width, size_t height, const uint8_t* bitmap);
+
+// XBM with rotation
+void canvas_draw_xbm_ex(Canvas* canvas, int32_t x, int32_t y, size_t width, size_t height, IconRotation rotation, const uint8_t* bitmap);
+
+// Compressed bitmap
+void canvas_draw_bitmap(Canvas* canvas, int32_t x, int32_t y, size_t width, size_t height, const uint8_t* compressed);
+```
+
+#### 2. **Text Drawing**
+
+```c
+// Draw string at baseline position
+void canvas_draw_str(Canvas* canvas, int32_t x, int32_t y, const char* str);
+
+// Draw string with alignment control
+void canvas_draw_str_aligned(Canvas* canvas, int32_t x, int32_t y,
+                              Align horizontal, Align vertical, const char* str);
+
+// Measure text width
+size_t canvas_string_width(Canvas* canvas, const char* str);
+```
+
+#### 3. **Animation Support**
+
+```c
+// Draw animated icons
+void canvas_draw_icon_animation(Canvas* canvas, int32_t x, int32_t y, IconAnimation* icon_animation);
+```
+
+---
+
+## XBM Format - Perfect for Monochrome Displays
+
+### What is XBM?
+
+**X BitMap (XBM)** is a monochrome bitmap image format that stores images as **C language arrays**. This makes it ideal for embedded systems because:
+
+1. **Direct inclusion in code** - No file system needed
+2. **Compile-time validation** - Errors caught at build time
+3. **Minimal RAM usage** - Data stored in program memory (PROGMEM)
+4. **Simple format** - Easy to understand and debug
+
+Source: [X BitMap - Wikipedia](https://en.wikipedia.org/wiki/X_BitMap)
+
+### XBM Format Structure
+
+```c
+// Example: 8x8 pixel smiley face
+#define smiley_width 8
+#define smiley_height 8
+static const unsigned char smiley_bits[] = {
+   0x3c, 0x42, 0xa5, 0x81, 0xa5, 0x99, 0x42, 0x3c
+};
+```
+
+Each byte represents 8 horizontal pixels (LSB on left):
+- `0x3c` = 00111100 binary = ┐  ┌ pixels
+- Bits are packed horizontally, then vertically
+
+---
+
+## Converting Images to XBM Format
+
+### Online Tools (Recommended)
+
+1. **[RunConvert XBM Converter](https://www.runconvert.com/xbm-converter)** - Free, fast, secure
+2. **[OnlineConvertFree PNG to XBM](https://onlineconvertfree.com/convert-format/png-to-xbm/)** - Supports 250+ formats
+3. **[Vertopal Image Converter](https://www.vertopal.com/en/convert/png-to-xbm)** - PNG/JPG to XBM
+4. **[Convertio XBM Converter](https://convertio.co/xbm-converter/)** - 100% secure, no registration
+
+### Desktop Software
+
+- **ImageMagick** - Command-line batch conversion
+  ```bash
+  convert bruce.png -monochrome bruce.xbm
+  ```
+- **GIMP** - Manual editing and export to XBM
+- **reaConverter** - Batch conversion tool for Windows
+
+### Flipper Zero Specific Tools
+
+- **Lopaka** - Web-based graphics editor specifically for Flipper Zero
+  - Creates and converts images for Flipper format
+  - Optimized for 128x64 displays
+  - Exports to C arrays
+
+Source: [GitHub FZ_graphics repository](https://github.com/Kuronons/FZ_graphics)
+
+---
+
+## How Flipper Zero Manages Animations
+
+### Animation System Architecture
+
+Flipper uses a **frame-based animation system** with metadata files:
+
+```
+Filetype: Flipper Animation
+Version: 1
+
+Width: 128
+Height: 64
+Passive frames: 16    # Idle animation frames
+Active frames: 22     # Action animation frames
+Frames order: 0 1 2 3 4 5 6 7 8 9 10 11 0 12 13...
+Active cycles: 1      # How many times to loop active frames
+Frame rate: 2         # FPS
+Duration: 3600        # How long to show (seconds)
+Active cooldown: 7    # Delay before returning to passive
+
+Bubble slots: 1       # Number of text overlay slots
+```
+
+### Text Bubble System
+
+Flipper's **"bubble slots"** allow text overlays on animations:
+
+```
+Slot: 0
+X: 60                 # Text position X
+Y: 23                 # Text position Y
+Text: I have to rest  # Message content
+AlignH: Left          # Horizontal alignment
+AlignV: Bottom        # Vertical alignment
+StartFrame: 7         # When to show
+EndFrame: 10          # When to hide
+```
+
+This system allows the dolphin mascot to display messages contextually based on system state.
+
+---
+
+## Application to Our Bruce Display System
+
+### Display Hardware Options
+
+Based on our ELEGOO kit and [CLAUDE.md](../CLAUDE.md) specifications:
+
+**Option 1: OLED SSD1306 (128x64) - RECOMMENDED**
+- Monochrome (perfect for XBM format)
+- I2C interface (address 0x3C)
+- Low power consumption
+- High contrast
+- Pin requirements: SDA (GPIO21), SCL (GPIO22), VCC (3.3V), GND
+
+**Option 2: LCD1602 (16x2 character)**
+- Included in ELEGOO kit
+- I2C backpack available
+- Limited to text and custom characters (5x8 pixels each)
+- Can create 8 custom characters maximum
+- Good for status display but limited for graphics
+
+**Option 3: ILI9341 TFT (240x320 color)**
+- Full color support
+- SPI interface
+- Higher power consumption
+- Can display full Bruce with color
+- More complex but better visual quality
+
+### Recommended Approach: Multi-Display Strategy
+
+```
+Primary Display: OLED SSD1306 (128x64)
+└─ Bruce character animations
+└─ Status messages
+└─ RF signal visualization
+
+Secondary Display: LCD1602 (16x2)
+└─ Battery percentage
+└─ WiFi status
+└─ Quick status codes
+```
+
+---
+
+## Bruce Character Implementation Plan
+
+### 1. Create Bruce XBM Assets
+
+**Design Specifications:**
+- **Swim animation**: 3-4 frames (like our [boot_screen.h:10-26](../firmware/esp32_primary/src/boot_screen.h))
+- **Static face**: 64x32 pixels for detailed view
+- **Small icon**: 32x16 pixels for status bar
+- **Expressions**: Happy, scanning, alert, sleeping (mood-based)
+
+**Current ASCII Art from boot_screen.h:**
+```c
+const char* BRUCE_FRAME_1 =
+"    />  \n"
+"  //    \n"
+" //     \n"
+"//___   ";
+```
+
+**Conversion Steps:**
+1. Create pixel art versions in PNG format (black & white)
+2. Use [OnlineConvertFree](https://onlineconvertfree.com/convert-format/png-to-xbm/) to convert to XBM
+3. Include generated C arrays in firmware
+4. Test on OLED display
+
+### 2. Display Library Selection
+
+**For ESP32 with SSD1306 OLED:**
+
+```cpp
+// Using Adafruit SSD1306 library
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_RESET -1
+#define SCREEN_ADDRESS 0x3C
+
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+// Draw XBM bitmap
+display.drawXBitmap(x, y, bruce_frame_1_bits, bruce_width, bruce_height, WHITE);
+```
+
+**Alternative: U8g2 library** (more efficient)
+
+```cpp
+#include <U8g2lib.h>
+
+U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
+
+// Draw XBM
+u8g2.drawXBM(x, y, bruce_width, bruce_height, bruce_frame_1_bits);
+```
+
+### 3. Animation Engine
+
+Implement frame-based animation similar to Flipper Zero:
+
+```cpp
+class BruceAnimator {
+private:
+    const uint8_t** frames;        // Array of XBM frame pointers
+    uint8_t frameCount;            // Total frames
+    uint8_t currentFrame;          // Current frame index
+    uint32_t lastFrameTime;        // Timestamp
+    uint16_t frameDelay;           // Milliseconds per frame
+
+public:
+    void update() {
+        uint32_t now = millis();
+        if (now - lastFrameTime >= frameDelay) {
+            currentFrame = (currentFrame + 1) % frameCount;
+            lastFrameTime = now;
+        }
+    }
+
+    const uint8_t* getCurrentFrame() {
+        return frames[currentFrame];
+    }
+};
+```
+
+### 4. Mood-Based Expression System
+
+Map Bruce moods to display states (from [bruce_personality.h:11-20](../firmware/esp32_primary/src/bruce_personality.h)):
+
+```cpp
+enum BruceMood {
+    MOOD_CALM,      // Blue LED - Show Bruce swimming slowly
+    MOOD_HAPPY,     // Green LED - Show Bruce smiling
+    MOOD_EXCITED,   // Yellow LED - Show Bruce with signal waves
+    MOOD_HUNTING,   // Red LED - Show Bruce alert/hunting
+    MOOD_THINKING,  // Purple LED - Show Bruce processing
+    MOOD_FRIENDLY,  // Cyan LED - Show Bruce with WiFi/BLE icon
+    MOOD_SLEEPY     // Dim blue - Show Bruce sleeping (zzz)
+};
+
+void display_bruce_mood(BruceMood mood) {
+    const uint8_t* expression = get_bruce_expression_bitmap(mood);
+    display.drawXBM(32, 16, BRUCE_WIDTH, BRUCE_HEIGHT, expression);
+}
+```
+
+### 5. Text Overlay System
+
+Implement "bubble" text like Flipper Zero:
+
+```cpp
+void display_bruce_with_message(const char* message) {
+    // Clear display
+    display.clearDisplay();
+
+    // Draw Bruce character
+    display.drawXBM(0, 0, 64, 32, bruce_face_bits);
+
+    // Draw speech bubble frame
+    display.drawRoundRect(60, 10, 60, 30, 5, WHITE);
+    display.fillTriangle(60, 20, 60, 25, 55, 22, WHITE);
+
+    // Draw text inside bubble
+    display.setTextSize(1);
+    display.setCursor(65, 20);
+    display.println(message);
+
+    display.display();
+}
+```
+
+### 6. Status Display Layout
+
+**Full screen layout (128x64):**
+
+```
+┌────────────────────────────────┐
+│  BRUCE v1.0.0        [Batt:85%]│ ← Header (8px)
+├────────────────────────────────┤
+│          />                     │
+│        //      "HUNTING"        │ ← Bruce + Status (32px)
+│      //___                      │
+├────────────────────────────────┤
+│ WiFi: 12 APs  |  BLE: 5 devices│ ← Info line 1 (8px)
+│ Signals: 3    |  CC1101: RX    │ ← Info line 2 (8px)
+│                                 │
+│ [===========░░░░] Scanning...  │ ← Progress bar (8px)
+└────────────────────────────────┘
+```
+
+---
+
+## Memory Considerations
+
+### XBM Bitmap Sizes
+
+**Formula:** `bytes = (width * height) / 8`
+
+- Bruce small (32x16): 64 bytes
+- Bruce face (64x32): 256 bytes
+- Full screen (128x64): 1024 bytes (1KB)
+- 4-frame animation (64x32 each): 1KB total
+
+**Storage Strategy:**
+```cpp
+// Store in program memory (Flash), not RAM
+static const uint8_t PROGMEM bruce_happy[] = {
+    0x00, 0x00, 0x80, 0x01, 0x40, 0x02, // ... XBM data
+};
+
+// Read from PROGMEM when needed
+display.drawXBitmap(x, y, bruce_happy, width, height, WHITE);
+```
+
+**ESP32-S3 Memory Budget:**
+- Total Flash: 8MB (plenty for bitmaps)
+- PSRAM: 8MB (for frame buffers if needed)
+- Static RAM: ~500KB (for display buffers)
+
+**Conclusion:** Memory is not a constraint. We can store dozens of Bruce animation frames.
+
+---
+
+## Implementation Checklist
+
+### Phase 1: Basic Display
+- [ ] Install SSD1306 OLED display
+- [ ] Test I2C communication
+- [ ] Display "Hello World" text
+- [ ] Test XBM drawing with simple shapes
+
+### Phase 2: Bruce Character
+- [ ] Design Bruce pixel art (PNG format)
+- [ ] Convert to XBM format using online tools
+- [ ] Create header file with XBM arrays
+- [ ] Test single frame display
+- [ ] Implement 3-frame swim animation
+
+### Phase 3: Expressions & Moods
+- [ ] Create expression variants (happy, scanning, alert, sleeping)
+- [ ] Link expressions to BruceMood enum
+- [ ] Implement LED + display synchronization
+- [ ] Test mood transitions
+
+### Phase 4: Advanced Features
+- [ ] Speech bubble text overlay system
+- [ ] Animated signal waves (for scanning mode)
+- [ ] Battery percentage display
+- [ ] Status bar with icons
+- [ ] Boot animation sequence
+
+### Phase 5: Integration
+- [ ] Connect to Flipper Zero UART events
+- [ ] Update display based on plugin activity
+- [ ] Implement power-saving screen dimming
+- [ ] Add easter eggs (special messages/animations)
+
+---
+
+## Code Examples
+
+### Complete Example: Bruce Boot Sequence
+
+```cpp
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include "bruce_bitmaps.h"  // Our XBM arrays
+
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_RESET -1
+#define SCREEN_ADDRESS 0x3C
+
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+void setup() {
+    Serial.begin(115200);
+
+    // Initialize display
+    if(!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
+        Serial.println(F("SSD1306 allocation failed"));
+        for(;;);
+    }
+
+    // Show Bruce boot sequence
+    show_bruce_boot_animation();
+}
+
+void show_bruce_boot_animation() {
+    // Frame 1
+    display.clearDisplay();
+    display.drawXBitmap(32, 16, bruce_frame_1, 64, 32, WHITE);
+    display.display();
+    delay(200);
+
+    // Frame 2
+    display.clearDisplay();
+    display.drawXBitmap(32, 16, bruce_frame_2, 64, 32, WHITE);
+    display.display();
+    delay(200);
+
+    // Frame 3
+    display.clearDisplay();
+    display.drawXBitmap(32, 16, bruce_frame_3, 64, 32, WHITE);
+    display.display();
+    delay(200);
+
+    // Show boot message
+    display.clearDisplay();
+    display.drawXBitmap(16, 8, bruce_face, 64, 32, WHITE);
+    display.setTextSize(1);
+    display.setTextColor(WHITE);
+    display.setCursor(0, 50);
+    display.println("BRUCE online.");
+    display.display();
+    delay(1500);
+}
+
+void loop() {
+    // Continuous swim animation
+    static uint8_t frame = 0;
+    static unsigned long lastUpdate = 0;
+
+    if (millis() - lastUpdate > 300) {
+        display.clearDisplay();
+
+        const uint8_t* currentFrame = nullptr;
+        switch(frame % 3) {
+            case 0: currentFrame = bruce_frame_1; break;
+            case 1: currentFrame = bruce_frame_2; break;
+            case 2: currentFrame = bruce_frame_3; break;
+        }
+
+        display.drawXBitmap(32, 16, currentFrame, 64, 32, WHITE);
+
+        // Status text
+        display.setCursor(0, 56);
+        display.println("Status: ARMED");
+
+        display.display();
+
+        frame++;
+        lastUpdate = millis();
+    }
+}
+```
+
+---
+
+## References & Resources
+
+### Official Documentation
+- [Flipper Zero Canvas API Reference](https://developer.flipper.net/flipperzero/doxygen/canvas_8h.html)
+- [Flipper Zero Icon API](https://developer.flipper.net/flipperzero/doxygen/icon_8h.html)
+- [X BitMap Format Specification](https://en.wikipedia.org/wiki/X_BitMap)
+- [XBM File Format Details](https://www.fileformat.info/format/xbm/egff.htm)
+
+### Conversion Tools
+- [RunConvert XBM Converter](https://www.runconvert.com/xbm-converter)
+- [OnlineConvertFree PNG to XBM](https://onlineconvertfree.com/convert-format/png-to-xbm/)
+- [Vertopal Image Converter](https://www.vertopal.com/en/convert/png-to-xbm)
+
+### Arduino Libraries
+- [Adafruit SSD1306](https://github.com/adafruit/Adafruit_SSD1306)
+- [Adafruit GFX](https://github.com/adafruit/Adafruit-GFX-Library)
+- [U8g2 (more efficient)](https://github.com/olikraus/u8g2)
+
+### Community Resources
+- [Flipper Zero Graphics Repository](https://github.com/Kuronons/FZ_graphics)
+- [Flipper Zero Doom Port (advanced graphics)](https://github.com/p4nic4ttack/doom-flipper-zero)
+
+---
+
+## Next Steps
+
+1. **Order OLED display** if not already available (SSD1306 128x64)
+2. **Create Bruce pixel art** - Start with simple 64x32 version
+3. **Test XBM conversion** - Verify format works with ESP32
+4. **Implement basic animator** - Get swim cycle working
+5. **Add personality system** - Link moods to expressions
+6. **Integrate with Flipper protocol** - Update display on events
+
+---
+
+*Research completed: 2025-12-03*
+*Based on Flipper Zero firmware analysis and embedded graphics best practices*

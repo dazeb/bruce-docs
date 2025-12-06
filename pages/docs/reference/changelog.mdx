@@ -1,0 +1,226 @@
+# BRUCE Project Changelog >
+
+**Repository**: https://github.com/dazeb/bruce
+**Project**: BRUCE (Big Brother Ultimate Communication Equipment)
+**Tagline**: "When your Dolphin needs a Great White"
+
+---
+
+## 2025-12-06 13:42:51
+- **Files**: dashboard/backend/requirements.txt
+- **Changes**: Security update - Upgraded Flask-CORS from 5.0.0 to 6.0.1
+- **Impact**: Fixes 3 moderate security vulnerabilities:
+  - CVE-2024-6839: Improper regex path matching
+  - CVE-2024-6844: URL path handling issues with '+' character
+  - CVE-2024-6866: Case-insensitive path matching vulnerability
+- **Status**: ✅ Complete - Security vulnerabilities resolved
+
+---
+
+## 2025-12-06 13:33:57
+- **Files**: todos/ directory (new), todos/*.md (11 new files)
+- **Changes**: Initialized CLI todo tracking system for BRUCE project
+  - Created todos/README.md with system documentation
+  - Converted PROJECT_STATUS.md phases into 11 trackable todo files
+  - Todo #001 (p1): Upload and test touchscreen GUI
+  - Todo #002-006 (p2): Phase 2 RF module integration (CC1101, nRF24)
+  - Todo #007-008 (p2-p3): Phase 3 ESP32-C6 WiFi 6 integration
+  - Todo #009 (p2): Flipper Zero UART connection
+  - Todo #010-011 (p3): Phase 4 advanced features (spectrum analyzer, SD logging)
+- **Impact**: Project now has structured, trackable workflow using CLI todo system
+- **Status**: ✅ Complete - Ready for /resolve_todo_parallel
+
+---
+
+## 2025-12-05 (Afternoon Session)
+
+### Repository Renamed to "bruce"
+- **Files**: Git remote configuration
+- **Changes**: Updated repository name from `esp32-flipper-devboard` to `bruce`
+- **Impact**: Repository URL now https://github.com/dazeb/bruce
+- **Status**:  Complete
+
+### Added Changelog Protocol
+- **Files**: CLAUDE.md
+- **Changes**: Added detailed changelog protocol section with timestamp requirements
+- **Impact**: All future edits must be logged with ISO 8601 timestamps
+- **Status**:  Complete
+
+### New Hardware Documentation
+- **Files**: hardware/NEW_HARDWARE_SUMMARY.md (new), CLAUDE.md, hardware/YOUR_INVENTORY.md
+- **Changes**: Documented major hardware additions:
+  - Waveshare ESP32-S3-WROOM-1 (240MHz, 16MB+8MB) - NEW PRIMARY CONTROLLER
+  - VooGenzek 38 PCS PCB Board Kit - Enables permanent builds
+  - DollaTek 2.8" ILI9341 TFT Touch Display - Modular touchscreen
+  - DollaTek 1.8" ST7735S TFT Display - Secondary display option
+  - Raspberry Pi Pico 2 W (RP2350) - GPIO expansion with WiFi+BT
+- **Impact**: Major upgrade to recommended build configuration, "Bruce Powerhouse" now primary recommendation
+- **Status**:  Complete
+
+### Updated Build Configuration Recommendations
+- **Files**: hardware/NEW_HARDWARE_SUMMARY.md, CLAUDE.md
+- **Changes**:
+  - "Bruce Powerhouse" configuration now recommended primary build
+  - Waveshare ESP32-S3 + DollaTek display combo preferred over CYD all-in-one
+  - Added multi-display "Bruce Multi-Display Beast" configuration
+  - Updated hardware comparison tables
+- **Impact**: Changes primary build path from CYD to modular ESP32-S3 setup
+- **Status**:  Complete
+
+### Hardware Value Update
+- **Files**: CLAUDE.md, hardware/NEW_HARDWARE_SUMMARY.md
+- **Changes**: Total hardware value increased from 250-300 to 300-350+
+- **Impact**: Documentation reflects current inventory value
+- **Status**:  Complete
+
+### MkDocs Material Documentation Site Setup
+- **Time**: 2025-12-05 17:45
+- **Files**:
+  - .github/workflows/deploy-docs.yml (new)
+  - mkdocs.yml (new, 267 lines)
+  - docs/ directory structure (53 files)
+  - docs/stylesheets/bruce-theme.css (new)
+  - docs/stylesheets/extra.css (new)
+  - docs/index.md (new, comprehensive home page)
+  - All section index pages (getting-started, build, hardware, firmware, etc.)
+- **Changes**: Created professional documentation website with MkDocs Material:
+  - Shark-themed dark mode color scheme (deep ocean blue, electric cyan)
+  - Complete navigation structure across 9 major sections
+  - Custom Bruce branding with gradient headers and animations
+  - GitHub Actions workflow for automatic deployment to GitHub Pages
+  - Fixed CHANGELOG.md encoding issues (removed shark emoji causing UTF-8 errors)
+  - Simplified navigation to only include existing files
+  - Copied all markdown files into docs/ structure
+  - Added Material theme features: instant loading, search, code copy, tabs, TOC integration
+  - Configured plugins: search, git-revision-date, minify
+  - Added Mermaid diagram support, syntax highlighting, admonitions
+  - Custom CSS variables and typography
+- **Impact**:
+  - Professional public documentation site at https://dazeb.github.io/bruce/
+  - Automatic deployment on every push to main branch
+  - Improved documentation discoverability and navigation
+  - Better visual presentation with shark theme matching Bruce identity
+  - Search functionality across all documentation
+  - Mobile-responsive design
+  - Faster iteration on documentation with live preview (`mkdocs serve`)
+- **Dependencies Added**:
+  - mkdocs-material
+  - mkdocs-git-revision-date-localized-plugin
+  - mkdocs-minify-plugin
+- **Status**: ✅ Complete - Deployed to GitHub Pages
+
+### Coolify Deployment Configuration
+- **Time**: 2025-12-05 18:15
+- **Files**:
+  - Dockerfile (new, multi-stage build)
+  - docker-compose.yml (new, Coolify-compatible)
+  - nginx.conf (new, production config)
+  - .dockerignore (new, build optimization)
+  - COOLIFY_DEPLOYMENT.md (new, comprehensive guide)
+- **Changes**: Created complete Coolify deployment setup for documentation site:
+  - Multi-stage Docker build (Python builder + nginx Alpine runtime)
+  - Optimized final image size (~50MB vs ~500MB single-stage)
+  - Nginx configuration with gzip compression (60-80% bandwidth reduction)
+  - Security headers (X-Frame-Options, X-Content-Type-Options, XSS Protection)
+  - Static asset caching (1 year for images, CSS, JS)
+  - Health checks for container monitoring
+  - Docker Compose with Coolify labels for auto-discovery
+  - Comprehensive deployment guide with troubleshooting
+- **Impact**:
+  - Can deploy to Coolify instead of GitHub Pages
+  - Self-hosted documentation option
+  - Custom domain support via Coolify
+  - Auto-deployment on git push (when enabled in Coolify)
+  - SSL certificates via Let's Encrypt (Coolify integration)
+  - Resource limits configurable (256MB RAM, 0.5 CPU recommended)
+  - 5-10 minute initial deployment, 2-3 minute rebuilds
+- **Deployment Options**:
+  - Method 1: Docker Compose (recommended)
+  - Method 2: Dockerfile deployment
+  - Both support automatic updates from GitHub
+- **Status**: ✅ Complete - Ready for Coolify deployment
+---
+
+## Pending Changes (Uncommitted)
+
+### Modified Files
+- CLAUDE.md - Hardware inventory updates, changelog protocol
+- dashboard/QUICKSTART.md - (changes pending review)
+- firmware/BRUCE_LVGL_GUIDE.md - (changes pending review)
+- hardware/YOUR_INVENTORY.md - New hardware additions
+
+### New Files
+- hardware/NEW_HARDWARE_SUMMARY.md - Comprehensive new hardware documentation
+- CHANGELOG.md - This file
+
+---
+
+## Earlier Changes (From Git History)
+
+### 2025-12-05 (Earlier)
+- **Commit**: cc66d39 - Refactor code structure for improved readability and maintainability
+- **Commit**: 6544391 - Update .gitignore to exclude docs/UK_EUROPE_FOB_PROTOCOLS.md
+- **Commit**: c0b9457 - Update submodule ESP32-Cheap-Yellow-Display to latest commit
+
+### 2025-12-04
+- **Commit**: 463e5b0 - Add wiring guides for DollaTek ILI9341 TFT and multi-board architecture for Bruce
+- **Commit**: 328f207 - Update .gitignore to exclude settings.local.json and add directory for 3.5inch_ESP32-3248S035
+
+---
+
+## Changelog Guidelines
+
+### Format Requirements
+1. **Timestamp**: ISO 8601 format `YYYY-MM-DD HH:MM:SS` for individual edits
+2. **Session grouping**: Group related edits by day/session with subsections
+3. **File tracking**: Always list affected files
+4. **Impact assessment**: Note if changes affect:
+   - Build configurations
+   - Dependencies
+   - Hardware requirements
+   - Workflow changes
+   - API or protocol changes
+
+### Commit Discipline
+- Update CHANGELOG.md BEFORE committing code changes
+- Each git commit should reference corresponding changelog entries
+- Use conventional commit messages aligned with changelog
+
+### Review Protocol
+- Weekly changelog review for consistency
+- Monthly archival of old entries if needed
+- Maintain running "Pending Changes" section
+
+---
+
+**Last Updated**: 2025-12-05
+**Next Milestone**: Complete "Bruce Powerhouse" breadboard prototype
+**Status**: All hardware delivered, documentation updated, ready to build! >
+
+### Created Bruce Powerhouse Prototype Build Guide
+- **Time**: 16:20
+- **Files**: hardware/BRUCE_POWERHOUSE_PROTOTYPE_GUIDE.md (new, 2000+ lines)
+- **Changes**: Created comprehensive breadboard prototype build guide:
+  - Complete parts checklist with ELEGOO kit inventory references
+  - Detailed breadboard layout planning with ASCII diagrams  
+  - Step-by-step wiring instructions for ESP32-S3 + Display + CC1101
+  - Complete pin assignment tables (SPI3, SPI1, I2C, status LEDs)
+  - Critical safety warnings (3.3V only for CC1101, I2C pull-ups required)
+  - Antenna construction guide (17.3cm wire for 433MHz quarter-wave)
+  - 10-step build process with time estimates (4-6 hours total)
+  - Complete test firmware (main.cpp with Bruce personality)
+  - PlatformIO configuration (platformio.ini with TFT_eSPI settings)
+  - Comprehensive troubleshooting guide
+  - Power-on testing procedures with expected results
+  - Next steps for Phases 2-6
+  - Build log template
+  - Bruce personality quotes throughout
+- **Impact**:
+  - Complete step-by-step resource for first prototype build
+  - Reduces build errors with detailed verification checks
+  - Provides testing framework for hardware validation
+  - Establishes baseline for Phase 2-6 expansions
+  - Professional-quality documentation
+  - Enables solo builder to complete Phase 1 successfully
+- **Status**: ✅ Complete
+

@@ -1,196 +1,826 @@
-# Firmware Overview
+# Ultimate Flipper Zero Dev Board - Firmware Architecture
 
-BRUCE's firmware is built on ESP-IDF and Arduino framework, featuring a modular plugin architecture that allows for dynamic loading of capabilities.
+## Design Philosophy
 
-## Firmware Architecture
+1. **Modular**: Enable/disable features dynamically
+2. **Conflict-Free**: Intelligent bus management to prevent SPI/I2C conflicts
+3. **Power-Aware**: Selective module activation to conserve battery
+4. **Professional**: Clean code, well-documented, testable
+5. **Extensible**: Plugin architecture for community modules
 
-### Core Components
+---
 
-**FreeRTOS Task System**
-- Multi-threaded operation with priority-based scheduling
-- Dedicated tasks for UART, WiFi, display, and power management
-- Watchdog timers for reliability
+## System Architecture
 
-**Plugin System**
-- Hot-loadable modules
-- Automatic dependency resolution
-- Conflict detection and prevention
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     FIRMWARE ARCHITECTURE                        │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │              APPLICATION LAYER                           │  │
+│  │  ┌────────┐  ┌────────┐  ┌────────┐  ┌────────┐        │  │
+│  │  │ WiFi   │  │  BLE   │  │Sub-GHz │  │  LoRa  │  ...   │  │
+│  │  │Scanner │  │Scanner │  │Capture │  │Network │        │  │
+│  │  └────────┘  └────────┘  └────────┘  └────────┘        │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│                           ▲                                     │
+│  ┌────────────────────────┴─────────────────────────────────┐  │
+│  │              PLUGIN MANAGER                              │  │
+│  │  - Hot-load/unload modules                              │  │
+│  │  - Dependency resolution                                │  │
+│  │  - Conflict detection                                   │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│                           ▲                                     │
+│  ┌────────────────────────┴─────────────────────────────────┐  │
+│  │              CORE SERVICES LAYER                         │  │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐              │  │
+│  │  │Comm Mgr  │  │Power Mgr │  │File Sys  │              │  │
+│  │  └──────────┘  └──────────┘  └──────────┘              │  │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐              │  │
+│  │  │Bus Mgr   │  │Crypto    │  │Net Stack │              │  │
+│  │  └──────────┘  └──────────┘  └──────────┘              │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│                           ▲                                     │
+│  ┌────────────────────────┴─────────────────────────────────┐  │
+│  │              HARDWARE ABSTRACTION LAYER (HAL)            │  │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐              │  │
+│  │  │SPI HAL   │  │I2C HAL   │  │UART HAL  │              │  │
+│  │  └──────────┘  └──────────┘  └──────────┘              │  │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐              │  │
+│  │  │GPIO HAL  │  │ADC HAL   │  │PWM HAL   │              │  │
+│  │  └──────────┘  └──────────┘  └──────────┘              │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│                           ▲                                     │
+│  ┌────────────────────────┴─────────────────────────────────┐  │
+│  │              RTOS KERNEL (FreeRTOS/Zephyr)               │  │
+│  │  - Task scheduling                                       │  │
+│  │  - Memory management                                     │  │
+│  │  - Synchronization primitives                           │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-**Power Management**
-- Per-module power control
-- Multiple power states
-- Battery monitoring and protection
+---
 
-**Communication Stack**
-- Binary protocol for Flipper Zero
-- JSON-RPC for complex operations
-- WebSocket for web dashboard
+## Multi-Processor Coordination
 
-## Task Structure
+### ESP32-S3 (Primary Controller)
+
+**Role**: Main coordinator and Flipper interface
+
+**Responsibilities**:
+
+- UART communication with Flipper Zero
+- Command parsing and routing
+- WiFi/BLE operations
+- Data aggregation
+- Power management
+- Display updates
+- File system operations
+- Crypto operations (with ATECC608)
+
+**Tasks**:
 
 ```c
-// Priority levels (0 = lowest, 7 = highest)
-xTaskCreate(flipper_comm_task,    "Flipper_UART", 4096, NULL, 7, NULL);  // CRITICAL
-xTaskCreate(wifi_manager_task,    "WiFi_Mgr",     8192, NULL, 5, NULL);  // HIGH
-xTaskCreate(display_task,         "Display",      2048, NULL, 3, NULL);  // NORMAL
-xTaskCreate(power_monitor_task,   "Power_Mon",    2048, NULL, 2, NULL);  // NORMAL
-xTaskCreate(log_task,             "Logger",       2048, NULL, 1, NULL);  // LOW
+xTaskCreate(flipper_comm_task,    "Flipper_UART", 4096, NULL, 5, NULL);
+xTaskCreate(wifi_manager_task,    "WiFi_Mgr",     8192, NULL, 4, NULL);
+xTaskCreate(display_task,         "Display",      2048, NULL, 3, NULL);
+xTaskCreate(power_monitor_task,   "Power_Mon",    2048, NULL, 2, NULL);
+xTaskCreate(file_manager_task,    "File_Mgr",     4096, NULL, 3, NULL);
 ```
+
+### ESP32-C6 (WiFi 6 & IoT Protocols)
+
+**Role**: Advanced wireless operations
+
+**Responsibilities**:
+
+- WiFi 6 (802.11ax) packet injection
+- BLE 5.3 long-range scanning
+- Thread/Zigbee protocol handling
+- Offload intensive WiFi operations
+- Mesh networking
+
+**Communication with Primary**:
+
+- **I2C Slave** mode (address 0x20)
+- **Shared SPI** for bulk data transfers
+- **IRQ line** for event notifications
+
+**Tasks**:
+
+```c
+xTaskCreate(wifi6_scan_task,      "WiFi6_Scan",   8192, NULL, 5, NULL);
+xTaskCreate(ble53_scan_task,      "BLE53_Scan",   4096, NULL, 4, NULL);
+xTaskCreate(thread_protocol_task, "Thread",       4096, NULL, 3, NULL);
+xTaskCreate(i2c_slave_task,       "I2C_Slave",    2048, NULL, 6, NULL);
+```
+
+### RP2040 (GPIO Expansion)
+
+**Role**: GPIO flexibility and sensor interfacing
+
+**Responsibilities**:
+
+- Manage 30 GPIO pins
+- ADC operations (12-bit, 4 channels)
+- PWM generation (16 channels)
+- PIO state machines for custom protocols
+- Sensor data collection
+- Fast GPIO toggling
+
+**Communication with Primary**:
+
+- **SPI Slave** mode for high-speed data
+- **I2C Slave** mode for commands (address 0x21)
+
+**Cores**:
+
+- **Core 0**: Main logic, communication
+- **Core 1**: Real-time GPIO operations, PIO
+
+---
+
+## Bus Management (Critical!)
+
+### Problem: The BFFB Issue
+
+BFFB had SPI conflicts causing crashes. We solve this with intelligent bus management.
+
+### Our Solution: Multi-Bus Architecture
+
+#### SPI Bus Assignment
+
+```
+SPI1 (Primary) - ESP32-S3 HSPI
+├── CC1101 #1 (315MHz)   - CS: GPIO5
+├── CC1101 #2 (433MHz)   - CS: GPIO15
+└── CC1101 #3 (915MHz)   - CS: GPIO13
+
+SPI2 (Secondary) - ESP32-S3 VSPI
+├── nRF24L01+ PA/LNA     - CS: GPIO25
+├── SX1276 (LoRa)        - CS: GPIO26
+├── W25Q512 (Flash)      - CS: GPIO27
+└── PN532 (NFC)          - CS: GPIO32 (alt: I2C mode)
+
+SPI3 (Dedicated) - ESP32-S3 SPI3
+└── MicroSD Card         - CS: GPIO33
+    (Or use SDIO 4-bit mode for faster speeds)
+
+RP2040 SPI (Isolated)
+└── Communication with ESP32-S3
+```
+
+#### I2C Bus Assignment
+
+```
+I2C0 (Primary) - ESP32-S3
+├── ESP32-C6             - Address: 0x20
+├── RP2040               - Address: 0x21
+├── OLED SSD1306         - Address: 0x3C
+├── BME680               - Address: 0x76
+├── MPU9250              - Address: 0x68
+├── ATECC608A            - Address: 0x60
+├── MAX17048 (Fuel Gauge)- Address: 0x36
+└── PN532 (alt)          - Address: 0x24
+
+I2C1 (Expansion) - RP2040
+├── Qwiic Connector 1    - User modules
+└── Qwiic Connector 2    - User modules
+
+I2C2 (Sensors) - ESP32-C6
+└── Future expansion
+```
+
+#### UART Assignment
+
+```
+UART0 (ESP32-S3)
+└── Flipper Zero         - RX: GPIO16, TX: GPIO17
+
+UART1 (ESP32-S3)
+└── GPS NEO-M8N          - RX: GPIO18, TX: GPIO19
+
+UART2 (ESP32-S3)
+└── Debug console        - USB CDC (native USB)
+
+UART0 (RP2040)
+└── Debug/expansion
+```
+
+### Bus Arbitration
+
+```c
+// SPI Bus Manager
+typedef struct {
+    SemaphoreHandle_t mutex;
+    spi_host_device_t host;
+    uint32_t freq_hz;
+    bool in_use;
+} spi_bus_t;
+
+spi_bus_t spi_buses[3] = {
+    { .host = SPI1_HOST, .freq_hz = 8000000 },  // CC1101s
+    { .host = SPI2_HOST, .freq_hz = 10000000 }, // nRF24, LoRa
+    { .host = SPI3_HOST, .freq_hz = 20000000 }  // SD card
+};
+
+esp_err_t acquire_spi_bus(spi_bus_t* bus, TickType_t timeout) {
+    if (xSemaphoreTake(bus->mutex, timeout) == pdTRUE) {
+        bus->in_use = true;
+        return ESP_OK;
+    }
+    return ESP_ERR_TIMEOUT;
+}
+
+void release_spi_bus(spi_bus_t* bus) {
+    bus->in_use = false;
+    xSemaphoreGive(bus->mutex);
+}
+```
+
+---
+
+## Power Management
+
+### Power States
+
+```c
+typedef enum {
+    POWER_STATE_FULL,        // All modules active
+    POWER_STATE_WIFI_ONLY,   // WiFi + essential only
+    POWER_STATE_LOWPOWER,    // Essential modules only
+    POWER_STATE_SLEEP,       // Deep sleep, wakeup on UART
+    POWER_STATE_SHUTDOWN     // Power off
+} power_state_t;
+```
+
+### Module Power Control
+
+```c
+typedef struct {
+    const char* name;
+    gpio_num_t enable_pin;
+    bool powered;
+    uint32_t power_mw;       // Power consumption in mW
+} module_power_t;
+
+module_power_t modules[] = {
+    { "CC1101_1",   GPIO_NUM_4,  false, 60 },
+    { "CC1101_2",   GPIO_NUM_14, false, 60 },
+    { "CC1101_3",   GPIO_NUM_12, false, 60 },
+    { "nRF24_PA",   GPIO_NUM_23, false, 120 },
+    { "SX1276",     GPIO_NUM_22, false, 100 },
+    { "ESP32_C6",   GPIO_NUM_21, false, 150 },
+    { "RP2040",     GPIO_NUM_34, false, 50 },
+    { "GPS",        GPIO_NUM_35, false, 80 },
+    { "PN532",      GPIO_NUM_36, false, 150 },
+    { "OLED",       GPIO_NUM_37, false, 20 },
+};
+
+void module_power_on(module_power_t* module) {
+    gpio_set_level(module->enable_pin, 1);
+    vTaskDelay(pdMS_TO_TICKS(50)); // Startup delay
+    module->powered = true;
+    ESP_LOGI(TAG, "Powered ON: %s (%dmW)", module->name, module->power_mw);
+}
+
+void module_power_off(module_power_t* module) {
+    gpio_set_level(module->enable_pin, 0);
+    module->powered = false;
+    ESP_LOGI(TAG, "Powered OFF: %s", module->name);
+}
+```
+
+### Battery Monitoring
+
+```c
+typedef struct {
+    float voltage;           // Battery voltage
+    float current_ma;        // Current draw
+    uint8_t soc_percent;    // State of charge
+    bool charging;
+    uint32_t time_remaining_min;
+} battery_status_t;
+
+void battery_monitor_task(void* pvParameters) {
+    battery_status_t status;
+
+    while(1) {
+        // Read from MAX17048 fuel gauge via I2C
+        max17048_read_soc(&status.soc_percent);
+        max17048_read_vcell(&status.voltage);
+
+        // Calculate current from BQ25895
+        bq25895_read_current(&status.current_ma);
+        bq25895_get_charging_status(&status.charging);
+
+        // Estimate remaining time
+        if (status.current_ma > 0 && !status.charging) {
+            uint32_t capacity_mah = 3000; // 18650 typical
+            uint32_t remaining_mah = (capacity_mah * status.soc_percent) / 100;
+            status.time_remaining_min = (remaining_mah * 60) / status.current_ma;
+        }
+
+        // Send to display task
+        xQueueSend(battery_status_queue, &status, 0);
+
+        vTaskDelay(pdMS_TO_TICKS(5000)); // Update every 5 seconds
+    }
+}
+```
+
+---
 
 ## Plugin System
 
-### Plugin Structure
+### Plugin Interface
 
 ```c
 typedef struct plugin_t {
     const char* name;
     const char* version;
+    const char* author;
+
+    // Lifecycle callbacks
     esp_err_t (*init)(void);
     esp_err_t (*start)(void);
     esp_err_t (*stop)(void);
-    const char** required_modules;
-    esp_err_t (*handle_command)(const char* cmd, const char* args,
-                                char* response, size_t max_len);
+    esp_err_t (*deinit)(void);
+
+    // Dependencies
+    const char** required_modules;  // ["CC1101_1", "GPS", NULL]
+    uint32_t min_free_heap;         // Minimum heap required
+    power_state_t min_power_state;
+
+    // Command handling
+    esp_err_t (*handle_command)(const char* cmd, const char* args, char* response, size_t max_len);
+
+    // Event handling
+    void (*on_event)(const char* event, void* data);
+
+    TaskHandle_t task_handle;
+    bool loaded;
+    bool running;
 } plugin_t;
 ```
 
-### Available Plugins
+### Example Plugin: WiFi Scanner
 
-- **WiFi Scanner**: 2.4GHz and 5GHz scanning
-- **BLE Scanner**: BLE 5.3 device discovery
-- **Sub-GHz**: CC1101 radio operations
-- **LoRa**: Long-range communications
-- **NFC**: Read/write/emulate operations
-- **GPS Logger**: Position tracking
+```c
+plugin_t wifi_scanner_plugin = {
+    .name = "WiFi Scanner",
+    .version = "1.0.0",
+    .author = "Community",
+    .init = wifi_scanner_init,
+    .start = wifi_scanner_start,
+    .stop = wifi_scanner_stop,
+    .deinit = wifi_scanner_deinit,
+    .required_modules = (const char*[]){"WiFi", NULL},
+    .min_free_heap = 64 * 1024,
+    .min_power_state = POWER_STATE_WIFI_ONLY,
+    .handle_command = wifi_scanner_command,
+    .on_event = wifi_scanner_event,
+};
 
-## Communication Protocols
+esp_err_t wifi_scanner_init(void) {
+    ESP_LOGI(TAG, "WiFi Scanner plugin initializing...");
+    // Initialize WiFi in promiscuous mode
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+    ESP_ERROR_CHECK(esp_wifi_start());
+    return ESP_OK;
+}
 
-### Flipper Zero UART Protocol
+esp_err_t wifi_scanner_start(void) {
+    xTaskCreate(wifi_scan_task, "WiFi_Scan", 8192, NULL, 4, &wifi_scanner_plugin.task_handle);
+    wifi_scanner_plugin.running = true;
+    return ESP_OK;
+}
 
-Binary protocol for efficient communication:
-
+esp_err_t wifi_scanner_command(const char* cmd, const char* args, char* response, size_t max_len) {
+    if (strcmp(cmd, "START_SCAN") == 0) {
+        wifi_start_scan();
+        snprintf(response, max_len, "OK: Scan started");
+        return ESP_OK;
+    }
+    return ESP_ERR_NOT_SUPPORTED;
+}
 ```
-START_BYTE (0xAA) | COMMAND | LENGTH | DATA... | CHECKSUM
+
+### Plugin Manager
+
+```c
+#define MAX_PLUGINS 32
+plugin_t* loaded_plugins[MAX_PLUGINS];
+uint8_t plugin_count = 0;
+
+esp_err_t plugin_manager_load(plugin_t* plugin) {
+    // Check dependencies
+    for (const char** dep = plugin->required_modules; *dep != NULL; dep++) {
+        if (!is_module_available(*dep)) {
+            ESP_LOGE(TAG, "Plugin %s requires %s", plugin->name, *dep);
+            return ESP_ERR_NOT_FOUND;
+        }
+    }
+
+    // Check heap
+    if (esp_get_free_heap_size() < plugin->min_free_heap) {
+        ESP_LOGE(TAG, "Not enough heap for %s", plugin->name);
+        return ESP_ERR_NO_MEM;
+    }
+
+    // Initialize
+    esp_err_t ret = plugin->init();
+    if (ret != ESP_OK) {
+        return ret;
+    }
+
+    loaded_plugins[plugin_count++] = plugin;
+    plugin->loaded = true;
+
+    ESP_LOGI(TAG, "Loaded plugin: %s v%s", plugin->name, plugin->version);
+    return ESP_OK;
+}
+
+esp_err_t plugin_manager_start(const char* plugin_name) {
+    plugin_t* plugin = find_plugin(plugin_name);
+    if (plugin && plugin->loaded) {
+        return plugin->start();
+    }
+    return ESP_ERR_NOT_FOUND;
+}
 ```
 
-**Commands:**
-- `0x01`: CMD_PING - Health check
-- `0x02`: CMD_GET_STATUS - Device status
-- `0x03`: CMD_SEND_DATA - Data transfer
-- `0x04`: CMD_START_SCAN - Begin scanning
-- `0x05`: CMD_STOP_SCAN - End scanning
+---
 
-### JSON-RPC Protocol
+## Flipper Zero Communication Protocol
 
-For complex operations and configuration:
+### Extended Protocol (JSON-RPC over UART)
 
 ```json
 {
   "jsonrpc": "2.0",
-  "method": "wifi.scan",
+  "method": "plugin.execute",
   "params": {
-    "channel": 6,
-    "duration": 10
+    "plugin": "wifi_scanner",
+    "command": "START_SCAN",
+    "args": {
+      "channel": 6,
+      "duration": 30
+    }
   },
   "id": 1
 }
 ```
 
-## Memory Management
+**Response**:
 
-### PSRAM Usage
-
-ESP32-S3 provides 8MB PSRAM for large buffers:
-
-```c
-// Allocate from PSRAM for packet buffers
-uint8_t* packet_buffer = heap_caps_malloc(1024*1024, MALLOC_CAP_SPIRAM);
+```json
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "status": "scanning",
+    "networks": 12,
+    "filename": "/sd/scan_001.pcap"
+  },
+  "id": 1
+}
 ```
 
-### Internal RAM
+### Binary Protocol (High-Speed)
 
-Use internal RAM for time-critical operations:
+For bulk data (packet captures, GPS logs):
 
-```c
-// DMA buffers must be in internal RAM
-DMA_ATTR uint8_t dma_buffer[4096];
+```
+┌────────┬────────┬────────┬────────┬──────────┬──────────┐
+│ SYNC   │ TYPE   │ LENGTH │ SEQ_NUM│  DATA    │ CHECKSUM │
+├────────┼────────┼────────┼────────┼──────────┼──────────┤
+│ 0xAABB │ 1 byte │ 2 bytes│ 2 bytes│ N bytes  │ 2 bytes  │
+└────────┴────────┴────────┴────────┴──────────┴──────────┘
 ```
 
-## Power States
+**Types**:
 
-BRUCE supports multiple power states:
-
-- **FULL**: All modules active
-- **WIFI_ONLY**: Only WiFi/BLE active
-- **LOWPOWER**: Essential modules only
-- **SLEEP**: Deep sleep, periodic wake
-- **SHUTDOWN**: Complete power down
-
-## Bruce Personality in Firmware
-
-The firmware embodies Bruce's intimidating personality:
-
-**Boot Messages:**
-```cpp
-"BRUCE online. Big brother ready."
-"All systems armed."
-```
-
-**Status Messages:**
-```cpp
-"Target locked. Too easy."
-"Sweeping all bands..."
-"Nothing escapes me."
-```
-
-**LED Mood Indicators:**
-- BLUE: Armed and waiting
-- GREEN: Target acquired
-- YELLOW: Active hunting
-- RED: Full power transmission
-- PURPLE: Processing data
-- CYAN: Multi-protocol active
-- WHITE: Beast mode
-
-## Development Tools
-
-### Building Firmware
-
-```bash
-cd firmware/esp32_primary
-pio run              # Build
-pio run -t upload    # Upload
-pio device monitor   # Monitor serial
-```
-
-### Debugging
-
-```bash
-# Enable debug logging
-pio run -t clean
-pio run -e debug
-```
-
-### Testing
-
-```bash
-# Run unit tests
-pio test
-
-# Run integration tests
-pio test -e integration
-```
-
-## Firmware Sections
-
-Explore detailed firmware documentation:
-
-- **[Architecture](/docs/firmware/architecture)** - Complete firmware architecture
-- **[Plugin System](/docs/firmware/plugin-system)** - Plugin development guide
-- **[Communication Protocols](/docs/firmware/protocols)** - Protocol specifications
-- **[Development Guide](/docs/firmware/development)** - How to develop for BRUCE
-- **[API Reference](/docs/firmware/api)** - Complete API documentation
+- `0x01`: Command
+- `0x02`: Response
+- `0x03`: Event/notification
+- `0x04`: Stream data (packets, GPS, etc.)
+- `0x05`: File transfer
 
 ---
 
-Ready to start developing? Check out the [Development Guide](/docs/firmware/development).
+## File System Architecture
+
+### SD Card Structure
+
+```
+/sd/
+├── config/
+│   ├── system.json
+│   ├── plugins.json
+│   └── network.json
+├── captures/
+│   ├── wifi/
+│   │   ├── scan_001.pcap
+│   │   └── scan_002.pcap
+│   ├── ble/
+│   │   └── ble_capture_001.bin
+│   └── subghz/
+│       └── 433mhz_capture_001.raw
+├── logs/
+│   ├── system.log
+│   └── gps.nmea
+├── firmware/
+│   ├── esp32s3.bin
+│   ├── esp32c6.bin
+│   └── rp2040.uf2
+└── plugins/
+    ├── wifi_deauth.so
+    └── ble_scanner_v2.so
+```
+
+### File Manager
+
+```c
+typedef struct {
+    char path[256];
+    FILE* fp;
+    size_t size;
+    bool writing;
+} capture_file_t;
+
+capture_file_t* create_capture_file(const char* type) {
+    capture_file_t* cf = malloc(sizeof(capture_file_t));
+
+    // Generate unique filename
+    time_t now = time(NULL);
+    snprintf(cf->path, sizeof(cf->path),
+             "/sd/captures/%s/%s_%ld.pcap",
+             type, type, now);
+
+    // Create directories if needed
+    mkdir_recursive(cf->path);
+
+    // Open file
+    cf->fp = fopen(cf->path, "wb");
+    cf->writing = true;
+
+    return cf;
+}
+```
+
+---
+
+## OTA (Over-The-Air) Updates
+
+### Update Sources
+
+1. **WiFi** - Download from update server
+2. **USB** - Mass storage mode
+3. **SD Card** - Load from /firmware/
+4. **Flipper Zero** - Transfer via UART
+
+### Update Process
+
+```c
+void ota_update_task(void* pvParameters) {
+    esp_http_client_config_t config = {
+        .url = "https://updates.example.com/firmware.bin",
+        .cert_pem = server_cert,
+    };
+
+    esp_err_t ret = esp_https_ota(&config);
+
+    if (ret == ESP_OK) {
+        ESP_LOGI(TAG, "OTA successful, rebooting...");
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        esp_restart();
+    } else {
+        ESP_LOGE(TAG, "OTA failed: %s", esp_err_to_name(ret));
+    }
+}
+```
+
+### Multi-MCU Coordination
+
+```c
+void update_all_mcus(void) {
+    // 1. Update ESP32-S3 (primary)
+    update_esp32s3();
+
+    // 2. Signal ESP32-C6 to update
+    i2c_write_command(ESP32_C6_ADDR, CMD_UPDATE_FIRMWARE);
+
+    // 3. Signal RP2040 to enter bootloader
+    gpio_set_level(RP2040_BOOTSEL_PIN, 1);
+    gpio_set_level(RP2040_RESET_PIN, 0);
+    vTaskDelay(pdMS_TO_TICKS(100));
+    gpio_set_level(RP2040_RESET_PIN, 1);
+
+    // RP2040 appears as USB mass storage, upload .uf2
+}
+```
+
+---
+
+## Security
+
+### Secure Boot Chain
+
+```
+┌──────────────┐
+│  ROM Boot    │ (Verify bootloader signature)
+└──────┬───────┘
+       ▼
+┌──────────────┐
+│  Bootloader  │ (Verify app signature)
+└──────┬───────┘
+       ▼
+┌──────────────┐
+│  Application │ (Verify plugin signatures)
+└──────────────┘
+```
+
+### Using ATECC608 Secure Element
+
+```c
+void crypto_init(void) {
+    // Initialize I2C to ATECC608
+    atca_cfg_t cfg = {
+        .iface_type = ATCA_I2C_IFACE,
+        .atcai2c.slave_address = 0x60,
+        .atcai2c.bus = 0,
+        .atcai2c.baud = 100000,
+    };
+
+    atcab_init(&cfg);
+
+    // Generate device certificate if needed
+    uint8_t public_key[64];
+    atcab_genkey(0, public_key);
+}
+
+esp_err_t sign_data(const uint8_t* data, size_t len, uint8_t* signature) {
+    uint8_t digest[32];
+
+    // Hash data
+    mbedtls_sha256(data, len, digest, 0);
+
+    // Sign with ATECC608 private key
+    return atcab_sign(0, digest, signature);
+}
+```
+
+---
+
+## Performance Optimization
+
+### Memory Management
+
+```c
+// Use PSRAM for large buffers
+uint8_t* packet_buffer = heap_caps_malloc(1024 * 1024, MALLOC_CAP_SPIRAM);
+
+// Use internal RAM for time-critical data
+uint8_t* dma_buffer = heap_caps_malloc(4096, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
+```
+
+### Task Priorities
+
+```c
+// Priority levels (higher = more important)
+#define PRIORITY_CRITICAL   7  // UART Flipper comm
+#define PRIORITY_HIGH       5  // WiFi, BLE operations
+#define PRIORITY_NORMAL     3  // Sensors, display
+#define PRIORITY_LOW        1  // File operations, logging
+#define PRIORITY_IDLE       0  // Background tasks
+```
+
+### Watchdog
+
+```c
+void init_watchdog(void) {
+    esp_task_wdt_init(30, true); // 30 second timeout
+
+    // Add critical tasks
+    esp_task_wdt_add(flipper_comm_task_handle);
+    esp_task_wdt_add(power_monitor_task_handle);
+}
+
+void task_loop(void) {
+    while(1) {
+        do_work();
+
+        // Reset watchdog
+        esp_task_wdt_reset();
+
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+}
+```
+
+---
+
+## Build System
+
+### Multi-MCU Build
+
+```bash
+# Build all firmwares
+./build_all.sh
+
+# Outputs:
+# - build/esp32s3_primary.bin
+# - build/esp32c6_secondary.bin
+# - build/rp2040.uf2
+```
+
+### PlatformIO Configuration
+
+```ini
+[platformio]
+default_envs = esp32s3_primary, esp32c6_secondary, rp2040
+
+[env:esp32s3_primary]
+platform = espressif32
+board = esp32-s3-devkitc-1
+framework = espidf
+board_build.flash_size = 16MB
+board_build.psram_type = opi
+board_upload.flash_size = 16MB
+
+build_flags =
+    -DPRIMARY_CONTROLLER
+    -DBOARD_HAS_PSRAM
+    -DLOG_LEVEL=ESP_LOG_INFO
+
+[env:esp32c6_secondary]
+platform = espressif32
+board = esp32-c6-devkitc-1
+framework = espidf
+
+build_flags =
+    -DSECONDARY_WIFI6
+
+[env:rp2040]
+platform = raspberrypi
+board = pico
+framework = arduino
+```
+
+---
+
+## Testing Strategy
+
+### Unit Tests
+
+- HAL functions
+- Protocol parsing
+- Power calculations
+- Bus arbitration
+
+### Integration Tests
+
+- Multi-MCU communication
+- Plugin loading/unloading
+- OTA updates
+- Power state transitions
+
+### Hardware Tests
+
+- RF transmission/reception
+- GPS accuracy
+- Battery charging
+- Bus signal integrity
+
+---
+
+## Documentation
+
+### API Documentation (Doxygen)
+
+```c
+/**
+ * @brief Acquire SPI bus for exclusive access
+ *
+ * @param bus Pointer to SPI bus structure
+ * @param timeout Maximum wait time in ticks
+ * @return ESP_OK on success, ESP_ERR_TIMEOUT if timeout
+ */
+esp_err_t acquire_spi_bus(spi_bus_t* bus, TickType_t timeout);
+```
+
+### Plugin Development Guide
+
+- Plugin template
+- API reference
+- Best practices
+- Example plugins
+
+---
+
+**This architecture ensures a stable, extensible, and professional firmware platform!** 🚀

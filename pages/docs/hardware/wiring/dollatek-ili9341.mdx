@@ -1,0 +1,522 @@
+# DollaTek 2.8" ILI9341 TFT Touch Wiring Guide for Bruce 🦈
+
+## Module Specifications
+
+- **Display**: 2.8" TFT LCD (240×320 pixels, 262K/65K colors)
+- **Driver IC**: ILI9341
+- **Touch Controller**: XPT2046 (resistive touch)
+- **Interface**: SPI serial
+- **Voltage**: 5V/3.3V compatible (has onboard regulation)
+- **SD Card**: Included on PCB
+- **Size**: 86×50mm
+- **Viewing Area**: 46×65mm
+- **Orientation**: **PORTRAIT MODE ONLY** (240 width × 320 height) 📱
+
+## Pinout Reference
+
+### Standard ILI9341 Module Pins (Left to Right)
+
+```
+VCC   → Power (5V or 3.3V)
+GND   → Ground
+CS    → Chip Select (SPI)
+RESET → Reset (active low)
+DC/RS → Data/Command select
+MOSI  → SPI Data Out (SDI)
+SCK   → SPI Clock
+LED   → Backlight (3.3V or PWM)
+MISO  → SPI Data In (SDO) - optional for reading
+
+Touch pins (if separate):
+T_CLK → Touch SPI Clock (shared with SCK)
+T_CS  → Touch Chip Select
+T_DIN → Touch Data In (shared with MOSI)
+T_DO  → Touch Data Out (shared with MISO)
+T_IRQ → Touch Interrupt (optional)
+
+SD Card pins (if separate):
+SD_CS  → SD Card Chip Select
+SD_MOSI → Shared with display MOSI
+SD_MISO → Shared with display MISO
+SD_SCK  → Shared with display SCK
+```
+
+**Note**: Pin labels vary by manufacturer. Common alternatives:
+- DC = RS = A0 (Data/Command)
+- SDI = MOSI = DIN (Master Out Slave In)
+- SDO = MISO = DOUT (Master In Slave Out)
+- LED = BL = LEDA (Backlight)
+
+## Bruce's ESP32-S3 Wiring (SPI3 Bus)
+
+### Recommended Pin Assignment
+
+```
+Display Module          ESP32-S3 Pin     Function
+─────────────────────────────────────────────────
+VCC                  →  3.3V            Power (use 3.3V for safety)
+GND                  →  GND             Ground
+CS                   →  GPIO15          Display Chip Select
+RESET                →  GPIO4           Display Reset
+DC (RS/A0)           →  GPIO2           Data/Command Select
+MOSI (SDI/DIN)       →  GPIO23          SPI MOSI (shared)
+SCK (CLK)            →  GPIO18          SPI Clock (shared)
+LED (Backlight)      →  3.3V            or GPIO32 (PWM dimming)
+MISO (SDO/DOUT)      →  GPIO19          SPI MISO (optional)
+
+Touch Controller:
+T_CS                 →  GPIO14          Touch Chip Select
+T_DIN                →  GPIO23          Shared with MOSI
+T_DO                 →  GPIO19          Shared with MISO
+T_CLK                →  GPIO18          Shared with SCK
+T_IRQ                →  GPIO34          Touch Interrupt (optional)
+
+SD Card (if used):
+SD_CS                →  GPIO33          SD Card Chip Select
+SD_MOSI              →  GPIO23          Shared with display
+SD_MISO              →  GPIO19          Shared with display
+SD_SCK               →  GPIO18          Shared with display
+```
+
+### SPI Bus Sharing
+
+All devices on **SPI3 bus** share:
+- **MOSI** (GPIO23) - Data from ESP32 to devices
+- **MISO** (GPIO19) - Data from devices to ESP32
+- **SCK** (GPIO18) - Clock signal
+
+Each device has **unique Chip Select (CS)**:
+- Display CS: GPIO15
+- Touch CS: GPIO14
+- SD Card CS: GPIO33
+
+**Only one CS is active (LOW) at a time** - this allows multiple devices on same SPI bus.
+
+## Breadboard Wiring Diagram
+
+```
+ESP32-S3                    DollaTek ILI9341 Module
+─────────                   ──────────────────────
+
+     3.3V ────────────────→ VCC
+      GND ────────────────→ GND
+   GPIO15 ────────────────→ CS (Display)
+    GPIO4 ────────────────→ RESET
+    GPIO2 ────────────────→ DC (or RS/A0)
+   GPIO23 ────────────────→ MOSI (or SDI/DIN)
+   GPIO18 ────────────────→ SCK (or CLK)
+     3.3V ────────────────→ LED (Backlight)
+   GPIO19 ────────────────→ MISO (or SDO/DOUT)
+
+Touch (if separate pins):
+   GPIO14 ────────────────→ T_CS
+   GPIO23 ────┐            (shared with MOSI)
+   GPIO19 ────┤            (shared with MISO)
+   GPIO18 ────┘            (shared with SCK)
+   GPIO34 ────────────────→ T_IRQ (optional)
+
+SD Card (if separate pins):
+   GPIO33 ────────────────→ SD_CS
+   (shared) ──────────────→ SD_MOSI/MISO/SCK
+```
+
+## Important Notes
+
+### Power Supply
+
+**Option 1: 3.3V (Recommended for ESP32-S3)**
+```
+ESP32-S3 3.3V → Module VCC
+ESP32-S3 GND  → Module GND
+```
+- Safest option - no voltage level concerns
+- ESP32-S3's 3.3V regulator can supply up to 600mA
+- Display draws ~80-100mA (60-80mA backlight + 20mA logic)
+- **Make sure your USB supply can provide enough current**
+
+**Option 2: 5V (If using separate power)**
+```
+External 5V → Module VCC
+Common GND  → Module GND + ESP32 GND
+```
+- Use if ESP32 3.3V regulator is insufficient
+- Module has onboard 3.3V regulator for logic
+- **MUST share common ground**
+
+### Backlight Control
+
+**Fixed Brightness** (Simple):
+```
+LED pin → 3.3V directly
+```
+
+**PWM Dimming** (Recommended for battery life):
+```
+LED pin → GPIO32 (PWM capable)
+```
+Control brightness with `ledcWrite()` in code.
+
+### Touch Interrupt (Optional)
+
+The T_IRQ pin is **optional** but useful:
+- Goes LOW when screen is touched
+- Can use GPIO interrupt instead of polling
+- Saves CPU time and power
+- Connect to GPIO34 (input-only, good for interrupts)
+
+If not using: Just leave T_IRQ disconnected.
+
+### SD Card (Optional)
+
+If using SD card for logging/captures:
+- Shares same SPI bus (MOSI/MISO/SCK)
+- Requires unique CS pin (GPIO33)
+- SD cards typically need SPI speeds ≤ 20MHz
+- Display can run faster (40MHz)
+
+**Tip**: Initialize SD card first, then increase SPI speed for display.
+
+## Wiring Steps (Breadboard)
+
+### Step 1: Power Rails
+```
+1. Connect ESP32-S3 3.3V to breadboard positive rail (red)
+2. Connect ESP32-S3 GND to breadboard negative rail (blue)
+3. Verify with multimeter: Should read ~3.3V
+```
+
+### Step 2: Display Power
+```
+4. Module VCC → Breadboard positive rail (3.3V)
+5. Module GND → Breadboard negative rail
+6. Module LED → Breadboard positive rail (or GPIO32 for PWM)
+```
+
+### Step 3: SPI Data Lines (Shared)
+```
+7. ESP32 GPIO23 (MOSI) → Module MOSI/SDI/DIN
+8. ESP32 GPIO18 (SCK)  → Module SCK/CLK
+9. ESP32 GPIO19 (MISO) → Module MISO/SDO/DOUT (optional)
+```
+
+### Step 4: Display Control
+```
+10. ESP32 GPIO15 → Module CS
+11. ESP32 GPIO4  → Module RESET
+12. ESP32 GPIO2  → Module DC/RS/A0
+```
+
+### Step 5: Touch (If Separate Pins)
+```
+13. ESP32 GPIO14 → Module T_CS
+14. T_DIN → Already connected to MOSI (step 7)
+15. T_DO  → Already connected to MISO (step 9)
+16. T_CLK → Already connected to SCK (step 8)
+17. ESP32 GPIO34 → Module T_IRQ (optional)
+```
+
+### Step 6: SD Card (Optional)
+```
+18. ESP32 GPIO33 → Module SD_CS
+19. SD pins share MOSI/MISO/SCK (already connected)
+```
+
+## Testing Procedure
+
+### Test 1: Power Check
+```cpp
+void setup() {
+  Serial.begin(115200);
+  pinMode(2, OUTPUT);  // DC pin
+  pinMode(4, OUTPUT);  // RESET pin
+  pinMode(15, OUTPUT); // CS pin
+
+  digitalWrite(15, HIGH); // Deselect display
+  digitalWrite(4, LOW);   // Reset display
+  delay(100);
+  digitalWrite(4, HIGH);  // Release reset
+
+  Serial.println("Display powered on");
+}
+```
+
+Backlight should be ON (white screen).
+
+### Test 2: TFT_eSPI Library Test
+
+**Install library**: PlatformIO: `lib_deps = bodmer/TFT_eSPI@^2.5.43`
+
+**Create User_Setup.h**:
+```cpp
+#define ILI9341_DRIVER
+#define TFT_WIDTH  240
+#define TFT_HEIGHT 320
+
+// Bruce's pin configuration
+#define TFT_MISO 19
+#define TFT_MOSI 23
+#define TFT_SCLK 18
+#define TFT_CS   15
+#define TFT_DC    2
+#define TFT_RST   4
+
+// Touch pins
+#define TOUCH_CS 14
+
+// SPI frequency
+#define SPI_FREQUENCY  40000000  // 40MHz (fast!)
+#define SPI_READ_FREQUENCY  20000000
+#define SPI_TOUCH_FREQUENCY  2500000
+```
+
+**Simple test code**:
+```cpp
+#include <TFT_eSPI.h>
+
+TFT_eSPI tft = TFT_eSPI();
+
+void setup() {
+  Serial.begin(115200);
+
+  tft.init();
+  tft.setRotation(0);  // Portrait mode (240×320)
+
+  tft.fillScreen(TFT_BLACK);
+  tft.setTextColor(TFT_WHITE);
+  tft.setTextSize(2);
+  tft.setCursor(20, 20);
+  tft.println("BRUCE online.");
+  tft.println("Big brother ready.");
+
+  Serial.println("Display initialized in PORTRAIT mode!");
+}
+
+void loop() {
+  // Display should show "BRUCE online."
+}
+```
+
+### Test 3: Touch Test
+```cpp
+// Add to includes
+#include <SPI.h>
+
+// Add to setup() after tft.init()
+uint16_t x, y;
+bool pressed = tft.getTouch(&x, &y);
+
+void loop() {
+  uint16_t x, y;
+  if (tft.getTouch(&x, &y)) {
+    tft.fillCircle(x, y, 5, TFT_RED);
+    Serial.printf("Touch: x=%d, y=%d\n", x, y);
+  }
+  delay(50);
+}
+```
+
+Touch screen → red dots should appear.
+
+## Common Issues & Solutions
+
+### Issue 1: White Screen Only
+**Symptom**: Backlight on, no graphics
+**Causes**:
+- Wrong driver (not ILI9341)
+- CS/DC/RESET pins incorrect
+- SPI not initialized
+
+**Fix**:
+```cpp
+// Verify pins in setup()
+Serial.println("TFT_CS: " + String(TFT_CS));
+Serial.println("TFT_DC: " + String(TFT_DC));
+Serial.println("TFT_RST: " + String(TFT_RST));
+
+// Manual hardware reset
+pinMode(TFT_RST, OUTPUT);
+digitalWrite(TFT_RST, LOW);
+delay(100);
+digitalWrite(TFT_RST, HIGH);
+delay(100);
+```
+
+### Issue 2: Garbled Display
+**Symptom**: Random colors, noise
+**Causes**:
+- MOSI/MISO swapped
+- Wrong SPI frequency (too high)
+- Poor connections (breadboard)
+
+**Fix**:
+- Check MOSI → DIN/SDI, MISO → DOUT/SDO
+- Reduce SPI frequency to 20MHz
+- Use shorter wires, add 0.1µF capacitor near VCC/GND
+
+### Issue 3: Touch Not Working
+**Symptom**: No touch response
+**Causes**:
+- Touch CS not defined
+- Touch controller not calibrated
+
+**Fix**:
+```cpp
+// In User_Setup.h
+#define TOUCH_CS 14
+
+// Calibration (run once, note values)
+tft.calibrateTouch(calData, TFT_WHITE, TFT_BLACK, 15);
+// Apply calibration values in code
+```
+
+### Issue 4: Display Flickers
+**Symptom**: Screen flashes/flickers
+**Causes**:
+- Insufficient power supply
+- Long wires (capacitance)
+
+**Fix**:
+- Use USB cable rated for 2A+
+- Add 100µF electrolytic capacitor across VCC/GND
+- Keep wires short (under 10cm)
+
+## Performance Notes
+
+### SPI Speed Settings
+
+**Display** (ILI9341):
+- Read: 20MHz max
+- Write: 40MHz typical, 80MHz possible
+- Bruce config: 40MHz (safe, fast)
+
+**Touch** (XPT2046):
+- 2.5MHz typical
+- Slower than display (resistive touch needs time)
+
+**SD Card**:
+- 20MHz typical
+- Some cards support 40MHz+
+
+### Frame Rate
+
+At 40MHz SPI, full-screen refresh:
+- 240×320×16 bits = 1,228,800 bits
+- At 40Mbps: ~30ms per frame
+- **~33 FPS theoretical max**
+
+Partial updates much faster (for UI elements).
+
+## Bruce-Specific Features
+
+### Boot Screen
+```cpp
+void bruce_boot_screen() {
+  // PORTRAIT MODE: 240×320
+  tft.setRotation(0);  // Portrait orientation
+
+  tft.fillScreen(TFT_BLACK);
+  tft.setTextColor(TFT_RED, TFT_BLACK);
+  tft.setTextSize(3);
+  tft.setCursor(40, 80);
+  tft.println("BRUCE");
+
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.setTextSize(1);
+  tft.setCursor(20, 140);
+  tft.println("Big Brother Ultimate");
+  tft.setCursor(20, 155);
+  tft.println("Communication Equipment");
+
+  delay(2000);
+
+  tft.fillScreen(TFT_BLACK);
+  tft.setTextSize(2);
+  tft.setCursor(20, 100);
+  tft.println("Big brother ready.");
+}
+```
+
+### Status Bar
+```cpp
+void draw_status_bar(int battery, bool flipper_connected, int signal) {
+  // PORTRAIT MODE: 240 width × 320 height
+  tft.fillRect(0, 0, 240, 30, TFT_NAVY);
+  tft.setTextColor(TFT_WHITE);
+  tft.setTextSize(1);
+
+  // Battery
+  tft.setCursor(5, 10);
+  tft.printf("BAT: %d%%", battery);
+
+  // Flipper connection
+  tft.setCursor(90, 10);
+  tft.print(flipper_connected ? "FLIP" : "SOLO");
+
+  // Signal
+  tft.setCursor(180, 10);
+  tft.printf("SIG: %d", signal);
+}
+```
+
+### Spectrum Analyzer Display
+```cpp
+void draw_spectrum(uint8_t* data, int size) {
+  // PORTRAIT MODE: 240 width × 320 height
+  int bar_width = 240 / size;
+  int max_height = 280;  // Leave room for header/footer
+
+  for (int i = 0; i < size; i++) {
+    int height = map(data[i], 0, 255, 0, max_height);
+    uint16_t color = TFT_GREEN;
+    if (height > 200) color = TFT_RED;
+    else if (height > 140) color = TFT_YELLOW;
+
+    tft.fillRect(i * bar_width, 320 - height - 40, bar_width - 1, height, color);
+  }
+}
+```
+
+## PlatformIO Configuration
+
+### platformio.ini
+```ini
+[env:esp32-s3-devkit]
+platform = espressif32
+board = esp32-s3-devkitc-1
+framework = arduino
+
+lib_deps =
+    bodmer/TFT_eSPI@^2.5.43
+    lvgl/lvgl@^8.3.11  ; Optional: for advanced UI
+
+build_flags =
+    -DBOARD_HAS_PSRAM
+    -DCORE_DEBUG_LEVEL=3
+    -DUSER_SETUP_LOADED=1
+    -DILI9341_DRIVER=1
+    -DTFT_WIDTH=240
+    -DTFT_HEIGHT=320
+    -DTFT_MISO=19
+    -DTFT_MOSI=23
+    -DTFT_SCLK=18
+    -DTFT_CS=15
+    -DTFT_DC=2
+    -DTFT_RST=4
+    -DTOUCH_CS=14
+    -DSPI_FREQUENCY=40000000
+    -DSPI_READ_FREQUENCY=20000000
+    -DSPI_TOUCH_FREQUENCY=2500000
+```
+
+## Next Steps
+
+1. ✅ Order DollaTek 2.8" ILI9341 module
+2. ⏳ Wire display to ESP32-S3 following this guide
+3. ⏳ Test with TFT_eSPI library examples
+4. ⏳ Implement Bruce boot screen
+5. ⏳ Add RF module wiring (CC1101, nRF24)
+6. ⏳ Develop full Bruce UI with touch controls
+
+---
+
+**Bruce says**: "Now we're talking. A real screen for real work." 🦈

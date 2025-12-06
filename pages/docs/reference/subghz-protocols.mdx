@@ -1,0 +1,476 @@
+# Sub-GHz Protocol Reference for Bruce 🦈
+
+**Source**: Inspired by [Flipper Zero SubBrute](https://github.com/DarkFlippers/flipperzero-subbrute)
+**For**: CC1101 433MHz transceiver implementation on Bruce
+**Status**: Reference guide for Phase 2 (RF Module Integration)
+
+---
+
+## Overview
+
+This document provides a comprehensive reference for implementing Sub-GHz protocol support in Bruce, based on the proven Flipper Zero SubBrute application. Bruce can use this knowledge to detect, decode, and potentially transmit common Sub-GHz protocols used in car keys, garage doors, and other ISM band devices.
+
+## Supported Protocols (High Priority for Bruce)
+
+### CAME (Most Common - Start Here!)
+
+CAME is the **most common** protocol according to Flipper Zero research. Bruce should prioritize this first.
+
+| Protocol       | Frequency   | Bits | TE (μs) | Common Use               |
+| -------------- | ----------- | ---- | ------- | ------------------------ |
+| CAME 12bit 303 | 303.875 MHz | 12   | ~320    | EU car keys, gates       |
+| CAME 12bit 307 | 307.8 MHz   | 12   | ~320    | EU car keys, gates       |
+| CAME 12bit 315 | 315.0 MHz   | 12   | ~320    | USA car keys, gates      |
+| CAME 12bit 330 | 330.0 MHz   | 12   | ~320    | EU car keys, gates       |
+| CAME 12bit 433 | 433.92 MHz  | 12   | ~320    | **Most common!** EU/Asia |
+| CAME 12bit 868 | 868.35 MHz  | 12   | ~320    | EU LoRa band             |
+
+**Why CAME is Most Common**:
+
+- Simple 12-bit rolling code
+- Widely used in Europe and Asia
+- Cheap to manufacture
+- Used in CAME, BFT, Elka, Roger gates
+
+**Detection Pattern**:
+
+```
+Protocol: CAME
+Modulation: ASK/OOK (Amplitude Shift Keying / On-Off Keying)
+Symbol Duration (TE): ~320μs
+Bit encoding: Manchester encoding
+Total transmission time: ~80ms (12 bits × 2 symbols × 320μs × 10 repeats)
+```
+
+### NICE (Second Most Common)
+
+| Protocol       | Frequency  | Bits | TE (μs) | Common Use            |
+| -------------- | ---------- | ---- | ------- | --------------------- |
+| NICE 12bit 433 | 433.92 MHz | 12   | ~700    | EU gates (Nice brand) |
+| NICE 12bit 868 | 868.35 MHz | 12   | ~700    | EU gates (Nice brand) |
+
+### Chamberlain (Garage Door Openers - USA)
+
+**Very common in USA for garage doors!**
+
+| Protocol             | Frequency  | Bits | TE (μs) | Common Use          |
+| -------------------- | ---------- | ---- | ------- | ------------------- |
+| Chamberlain 9bit 300 | 300.0 MHz  | 9    | ~200    | USA garage doors    |
+| Chamberlain 9bit 315 | 315.0 MHz  | 9    | ~200    | **Most common USA** |
+| Chamberlain 9bit 318 | 318.0 MHz  | 9    | ~200    | USA garage doors    |
+| Chamberlain 9bit 390 | 390.0 MHz  | 9    | ~200    | USA garage doors    |
+| Chamberlain 9bit 433 | 433.92 MHz | 9    | ~200    | USA/EU hybrid       |
+| Chamberlain 8bit 300 | 300.0 MHz  | 8    | ~200    | Older USA garage    |
+| Chamberlain 8bit 315 | 315.0 MHz  | 8    | ~200    | Older USA garage    |
+| Chamberlain 8bit 390 | 390.0 MHz  | 8    | ~200    | Older USA garage    |
+| Chamberlain 7bit 300 | 300.0 MHz  | 7    | ~200    | Very old USA garage |
+| Chamberlain 7bit 315 | 315.0 MHz  | 7    | ~200    | Very old USA garage |
+| Chamberlain 7bit 390 | 390.0 MHz  | 7    | ~200    | Very old USA garage |
+
+**Security Level**: LOW (fixed code, easily brute-forced)
+
+### Holtek HT12X (Very Common in Asia)
+
+| Protocol            | Frequency  | Bits | TE (μs) | Modulation | Common Use           |
+| ------------------- | ---------- | ---- | ------- | ---------- | -------------------- |
+| Holtek HT12X FM 433 | 433.92 MHz | 12   | 204     | FM         | Asia car keys, gates |
+| Holtek HT12X AM 433 | 433.92 MHz | 12   | 433     | AM         | **Most common Asia** |
+| Holtek HT12X AM 315 | 315.0 MHz  | 12   | 433     | AM         | USA/Asia hybrid      |
+| Holtek HT12X AM 868 | 868.35 MHz | 12   | 433     | AM         | EU LoRa band         |
+| Holtek HT12X AM 915 | 915.0 MHz  | 12   | 433     | AM         | USA ISM band         |
+
+**Note**: Holtek chips are extremely cheap (~$0.10 each) and used in millions of remotes worldwide.
+
+### Linear (USA Garage Doors)
+
+| Protocol                | Frequency | Bits | TE (μs) | Common Use                  |
+| ----------------------- | --------- | ---- | ------- | --------------------------- |
+| Linear 10bit 300        | 300.0 MHz | 10   | ~200    | USA garage (Linear brand)   |
+| Linear 10bit 310        | 310.0 MHz | 10   | ~200    | USA garage (Linear brand)   |
+| Linear Delta 3 8bit 310 | 310.0 MHz | 8    | ~200    | USA garage (Linear Delta-3) |
+
+### PT2260 / PT2262 (DIP Switch Remotes)
+
+**Note**: These are **DIP switch based** - not full brute-force, only switch combinations.
+
+| Protocol         | Frequency  | Bits | TE (μs) | Switches | Common Use      |
+| ---------------- | ---------- | ---- | ------- | -------- | --------------- |
+| PT2260 24bit 315 | 315.0 MHz  | 24   | 286     | 8 DIP    | USA remotes     |
+| PT2260 24bit 330 | 330.0 MHz  | 24   | 286     | 8 DIP    | EU remotes      |
+| PT2260 24bit 390 | 390.0 MHz  | 24   | 286     | 8 DIP    | USA remotes     |
+| PT2260 24bit 433 | 433.92 MHz | 24   | 286     | 8 DIP    | EU/Asia remotes |
+| PT2262 24bit 315 | 315.0 MHz  | 24   | ~300    | 8 DIP    | USA remotes     |
+| PT2262 24bit 418 | 418.0 MHz  | 24   | ~300    | 8 DIP    | EU remotes      |
+| PT2262 24bit 430 | 430.0 MHz  | 24   | ~300    | 8 DIP    | EU remotes      |
+| PT2262 24bit 433 | 433.92 MHz | 24   | ~300    | 8 DIP    | **Very common** |
+
+**Brute-Force Strategy**: Only 2^8 = 256 combinations (8 DIP switches), not 2^24 = 16 million.
+
+### Ansonic (Less Common but Present)
+
+| Protocol              | Frequency   | Bits | TE (μs) | Common Use                 |
+| --------------------- | ----------- | ---- | ------- | -------------------------- |
+| Ansonic 12bit 433.075 | 433.075 MHz | 12   | ~200    | EU remotes (Ansonic brand) |
+| Ansonic 12bit 433.920 | 433.920 MHz | 12   | ~200    | EU remotes (Ansonic brand) |
+| Ansonic 12bit 434.075 | 434.075 MHz | 12   | ~200    | EU remotes (Ansonic brand) |
+
+### UNILARM / SMC5326 (DIP Switch Based)
+
+**Note**: DIP switch combinations only, not full brute-force.
+
+| Protocol          | Frequency  | Bits | TE (μs) | Switches | Common Use       |
+| ----------------- | ---------- | ---- | ------- | -------- | ---------------- |
+| UNILARM 25bit 330 | 330.0 MHz  | 25   | 209     | DIP      | Security systems |
+| UNILARM 25bit 433 | 433.92 MHz | 25   | 209     | DIP      | Security systems |
+| SMC5326 25bit 330 | 330.0 MHz  | 25   | 320     | DIP      | Security systems |
+| SMC5326 25bit 433 | 433.92 MHz | 25   | 320     | DIP      | Security systems |
+
+## Priority Implementation Order for Bruce
+
+### Phase 1: Essential Protocols (Do These First)
+
+1. **CAME 12bit 433MHz** - Most common worldwide ⭐⭐⭐⭐⭐
+2. **Chamberlain 9bit 315MHz** - Most common USA garage doors ⭐⭐⭐⭐
+3. **Holtek HT12X AM 433MHz** - Most common Asia ⭐⭐⭐⭐
+4. **PT2262 24bit 433MHz** - Very common DIP switch remotes ⭐⭐⭐⭐
+
+**Rationale**: These 4 protocols cover **80%+ of real-world devices**.
+
+### Phase 2: Secondary Protocols
+
+5. NICE 12bit 433MHz
+6. Linear 10bit 310MHz
+7. PT2260 24bit 433MHz
+8. CAME variants (315/868 MHz)
+
+### Phase 3: Regional Variants
+
+9. Chamberlain variants (300/318/390 MHz)
+10. Holtek variants (315/868/915 MHz)
+11. Ansonic 433MHz variants
+
+## Technical Implementation Guide
+
+### CC1101 Configuration for Each Protocol
+
+**CAME 12bit 433MHz Example**:
+
+```cpp
+// CC1101 register configuration for CAME protocol
+void configure_cc1101_came_433mhz() {
+    cc1101_set_frequency(433920000);  // 433.92 MHz
+    cc1101_set_modulation(CC1101_MOD_ASK_OOK);  // ASK/OOK modulation
+    cc1101_set_data_rate(3000);  // ~3 kBaud (for TE=320μs)
+    cc1101_set_bandwidth(CC1101_BW_200KHZ);  // 200 kHz RX bandwidth
+    cc1101_set_deviation(0);  // No deviation for OOK
+    cc1101_set_pa_table(0xC0);  // ~10 dBm TX power
+}
+```
+
+### Signal Detection Algorithm
+
+```cpp
+typedef struct {
+    float frequency;      // MHz (e.g., 433.92)
+    int8_t rssi;         // Signal strength (dBm)
+    uint32_t te;         // Symbol duration (μs)
+    uint8_t bits;        // Bit count (e.g., 12)
+    char modulation[8];  // "ASK", "OOK", "FSK"
+    char protocol[32];   // Detected protocol name
+} signal_info_t;
+
+signal_info_t detect_protocol(uint8_t* raw_data, size_t len) {
+    signal_info_t info;
+
+    // Step 1: Measure symbol duration (TE)
+    uint32_t te = measure_symbol_duration(raw_data, len);
+
+    // Step 2: Match TE to known protocols
+    if (te >= 300 && te <= 340) {
+        // Could be CAME (TE ~320μs)
+        strcpy(info.protocol, "CAME 12bit");
+        info.bits = 12;
+    }
+    else if (te >= 180 && te <= 220) {
+        // Could be Chamberlain (TE ~200μs)
+        strcpy(info.protocol, "Chamberlain 9bit");
+        info.bits = 9;
+    }
+    else if (te >= 410 && te <= 450) {
+        // Could be Holtek AM (TE ~433μs)
+        strcpy(info.protocol, "Holtek HT12X");
+        info.bits = 12;
+    }
+    // ... more protocols
+
+    return info;
+}
+```
+
+### Bruce's Auto-Protocol Detection
+
+**Smart Detection Strategy**:
+
+1. Scan frequency (e.g., 433.92 MHz)
+2. Detect transmission (RSSI spike)
+3. Measure TE (symbol duration)
+4. Count bits in transmission
+5. Match against known protocols
+6. Display result with confidence level
+
+**Example Flow**:
+
+```
+🦈 Bruce Scanning 433.92 MHz...
+  ↓
+📡 Spike detected! RSSI: -45 dBm
+  ↓
+⏱️ Measuring symbol duration... TE = 320μs
+  ↓
+🔢 Bit count: 12 bits
+  ↓
+🧠 Protocol match: CAME 12bit 433MHz (95% confidence)
+  ↓
+💾 [SAVE] [REPLAY] [ANALYZE]
+```
+
+## Modulation Types Explained
+
+### ASK (Amplitude Shift Keying)
+
+- Varies signal **amplitude** (strength)
+- Binary: Strong signal = 1, Weak signal = 0
+- **Most common** for car keys and garage doors
+- Easy to implement, low power
+
+### OOK (On-Off Keying)
+
+- Special case of ASK: **On** = 1, **Off** = 0
+- Simplest modulation possible
+- Very common in cheap remotes
+- Same as ASK but more extreme (0% vs 100% amplitude)
+
+### FSK (Frequency Shift Keying)
+
+- Varies signal **frequency**
+- Binary: Frequency A = 0, Frequency B = 1
+- More robust than ASK/OOK
+- Used in some modern protocols
+
+## Symbol Duration (TE) Guide
+
+**TE (Time Element)** is the duration of one symbol in the protocol.
+
+| TE Range  | Protocol Examples   | Notes                 |
+| --------- | ------------------- | --------------------- |
+| 180-220μs | Chamberlain, Linear | Fast protocols        |
+| 280-320μs | CAME, PT2260        | Medium speed          |
+| 400-450μs | Holtek HT12X AM     | Slower, more robust   |
+| 650-750μs | NICE                | Very slow, long range |
+
+**Why TE Matters**:
+
+- Helps identify protocol even without full decode
+- Determines transmission speed (fast TE = faster transmission)
+- Affects range (slower TE = longer range, more robust)
+
+## Manchester Encoding
+
+Many protocols use **Manchester encoding**:
+
+- Each bit is split into 2 symbols
+- Bit 0: Low-High transition (01)
+- Bit 1: High-Low transition (10)
+- Self-clocking (doesn't need separate clock signal)
+
+**Example**:
+
+```
+Data:   1   0   1   1   0
+        ↓   ↓   ↓   ↓   ↓
+Encoded: 10 01 10 10 01
+```
+
+## Brute-Force Strategy
+
+### Full Brute-Force (CAME 12bit)
+
+```cpp
+void brute_force_came_12bit() {
+    uint16_t max_value = (1 << 12) - 1;  // 2^12 - 1 = 4095
+
+    for (uint16_t code = 0; code <= max_value; code++) {
+        // Transmit code
+        transmit_came_code(code);
+
+        // Wait for response (gate opens, LED lights up, etc.)
+        delay(CAME_TX_TIMEOUT);  // ~6ms between transmissions
+
+        // Check for success
+        if (target_responded()) {
+            printf("🦈 Code found: 0x%03X (%d)\n", code, code);
+            break;
+        }
+
+        // Progress update every 100 codes
+        if (code % 100 == 0) {
+            float progress = (code * 100.0) / max_value;
+            printf("Progress: %.1f%% (%d/%d)\n", progress, code, max_value);
+        }
+    }
+}
+```
+
+**Time Estimate**:
+
+- 4096 codes × 6ms per code = ~24 seconds total
+- With repeats (3×): ~72 seconds
+- **Very feasible!**
+
+### DIP Switch Brute-Force (PT2260/PT2262)
+
+```cpp
+void brute_force_pt2260_dip() {
+    // Only 256 combinations (8 DIP switches)
+    uint8_t max_value = (1 << 8) - 1;  // 255
+
+    for (uint8_t dip_code = 0; dip_code <= max_value; dip_code++) {
+        // Convert 8-bit DIP code to 24-bit protocol format
+        uint32_t full_code = expand_dip_to_24bit(dip_code);
+
+        // Transmit
+        transmit_pt2260_code(full_code);
+        delay(PT2260_TX_TIMEOUT);
+
+        if (target_responded()) {
+            printf("🦈 DIP code found: 0x%02X (switches: %s)\n",
+                dip_code, format_dip_switches(dip_code));
+            break;
+        }
+    }
+}
+```
+
+**Time Estimate**:
+
+- 256 combinations × 10ms = 2.56 seconds
+- **Extremely fast!**
+
+## Bruce's Protocol Library Structure
+
+```cpp
+typedef enum {
+    PROTOCOL_CAME_12BIT_433,
+    PROTOCOL_CHAMBERLAIN_9BIT_315,
+    PROTOCOL_HOLTEK_HT12X_AM_433,
+    PROTOCOL_PT2262_24BIT_433,
+    PROTOCOL_NICE_12BIT_433,
+    PROTOCOL_LINEAR_10BIT_310,
+    // ... more protocols
+    PROTOCOL_COUNT
+} bruce_protocol_t;
+
+typedef struct {
+    const char* name;           // "CAME 12bit 433MHz"
+    uint32_t frequency;         // 433920000 (Hz)
+    uint8_t bits;              // 12
+    uint32_t te;               // 320 (μs)
+    uint8_t repeat;            // 3 (transmit 3 times)
+    cc1101_modulation_t mod;   // CC1101_MOD_ASK_OOK
+    uint8_t bandwidth;         // CC1101_BW_200KHZ
+    uint8_t (*encode)(uint64_t code, uint8_t* buffer);  // Encoding function
+    bool (*detect)(uint8_t* raw, size_t len);           // Detection function
+} bruce_protocol_info_t;
+```
+
+## Testing & Validation
+
+### Step 1: Reception Testing
+
+1. Use known remote (e.g., car key)
+2. Press button while Bruce scans
+3. Verify Bruce detects correct:
+   - Frequency (±10 kHz)
+   - TE (±20μs)
+   - Bit count (exact)
+   - Protocol name (correct match)
+
+### Step 2: Transmission Testing
+
+**WARNING**: Only test on YOUR OWN devices!
+
+1. Save known working code from remote
+2. Replay using Bruce
+3. Verify device responds correctly
+4. Test range (should match original remote ±20%)
+
+### Step 3: Brute-Force Testing
+
+**WARNING**: ONLY test on devices you own! Brute-forcing others' devices is ILLEGAL!
+
+1. Set up test device (your own garage door)
+2. Change code to random value
+3. Use Bruce to brute-force back to original
+4. Verify success rate and timing
+
+## Legal & Ethical Considerations
+
+**Bruce's Philosophy**: "With great power comes great responsibility."
+
+### ✅ Legal Uses:
+
+- Testing YOUR OWN devices
+- Security research on devices YOU OWN
+- Educational purposes
+- Recovering lost codes for YOUR devices
+- Pentesting with WRITTEN PERMISSION
+
+### ❌ Illegal Uses:
+
+- Opening others' garage doors
+- Unlocking cars you don't own
+- Interfering with security systems
+- "Testing" without permission
+- Selling brute-force services
+
+**Bruce says**: "I'm a tool for security research and learning. Use me responsibly, or face the consequences. The law is the law." 🦈
+
+## Power Consumption & Battery Life
+
+**Brute-Force Power Budget**:
+
+```
+CC1101 TX mode: ~30mA @ 10dBm
+ESP32-S3: ~150mA (active)
+Display: ~60mA
+Total: ~240mA
+
+3000mAh battery:
+- Continuous brute-force: ~12.5 hours
+- CAME 12bit (72 seconds): 4.8mAh consumed
+- Can brute-force ~625 times on full charge
+```
+
+## Implementation Checklist for Bruce
+
+### Phase 2 Tasks (RF Module Integration)
+
+- [ ] Wire CC1101 to ESP32-S3
+- [ ] Implement basic CC1101 driver (SPI communication)
+- [ ] Test 433.92 MHz RX/TX
+- [ ] Implement CAME 12bit protocol (reception)
+- [ ] Implement CAME 12bit protocol (transmission)
+- [ ] Create protocol detection algorithm
+- [ ] Add Chamberlain 9bit 315MHz
+- [ ] Add Holtek HT12X AM 433MHz
+- [ ] Add PT2262 24bit 433MHz
+- [ ] Build protocol selection UI (touchscreen)
+- [ ] Implement brute-force mode with progress display
+- [ ] Add signal recording to SD card
+- [ ] Test with real devices (YOUR OWN!)
+
+---
+
+**"Bruce doesn't just detect signals. He speaks their language fluently."** 🦈📡
+
+**Source**: Protocol information derived from [Flipper Zero SubBrute](https://github.com/DarkFlippers/flipperzero-subbrute)

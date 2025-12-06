@@ -1,0 +1,694 @@
+# 🦈 BRUCE Touchscreen Programming Guide
+
+**ESP32-2432S028R ("Cheap Yellow Display") Complete Setup**
+
+---
+
+## 📋 Board Specifications
+
+**Your Board: ESP32-2432S028R** (also called "Cheap Yellow Display" or CYD)
+
+### Hardware Specs:
+
+- **MCU:** ESP32-WROOM-32 (Dual-core, WiFi + BLE)
+- **Display:** 2.8" TFT LCD, 240x320 pixels, 65K colors
+- **Display Driver:** ILI9341 (some v3 boards use ST7789)
+- **Touch Controller:** XPT2046 (resistive touch)
+- **MicroSD:** Built-in card slot
+- **RGB LED:** Built-in for status
+- **USB:** USB-C programming port
+- **Power:** 5V via USB-C
+
+### Pin Configuration:
+
+**TFT Display (ILI9341) Pins:**
+
+```
+TFT_MISO = 12
+TFT_MOSI = 13
+TFT_SCLK = 14
+TFT_CS   = 15
+TFT_DC   = 2
+TFT_RST  = -1  // Not used
+TFT_BL   = 21  // Backlight control
+```
+
+**Touch Controller (XPT2046) Pins:**
+
+```
+TOUCH_MOSI = 32  // T_DIN
+TOUCH_MISO = 39  // T_OUT
+TOUCH_SCK  = 25  // T_CLK
+TOUCH_CS   = 33  // T_CS
+TOUCH_IRQ  = 36  // T_IRQ
+```
+
+**⚠️ CRITICAL:** Touch controller uses DIFFERENT SPI pins than display!
+
+**Available GPIO for RF Modules:**
+
+```
+GPIO: 0, 4, 16, 17, 22, 23, 26, 27, 34, 35
+```
+
+**RGB LED:**
+
+```
+LED_RED   = 4
+LED_GREEN = 16
+LED_BLUE  = 17
+```
+
+**SD Card:**
+
+```
+SD_CS = 5
+```
+
+---
+
+## 🔧 Arduino IDE Setup
+
+### Step 1: Install ESP32 Board Support
+
+1. Open Arduino IDE
+2. Go to **File → Preferences**
+3. Add to "Additional Board Manager URLs":
+   
+   ```
+   https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+   ```
+4. Go to **Tools → Board → Boards Manager**
+5. Search "ESP32" and install **"esp32 by Espressif Systems"**
+
+### Step 2: Select Board
+
+1. Go to **Tools → Board → esp32**
+2. Select **"ESP32 Dev Module"**
+3. Configure board settings:
+   
+   ```
+   Board: "ESP32 Dev Module"
+   Upload Speed: "921600"
+   CPU Frequency: "240MHz (WiFi/BT)"
+   Flash Frequency: "80MHz"
+   Flash Mode: "QIO"
+   Flash Size: "4MB (32Mb)"
+   Partition Scheme: "Default 4MB with spiffs (1.2MB APP/1.5MB SPIFFS)"
+   Core Debug Level: "None"
+   PSRAM: "Disabled"
+   Arduino Runs On: "Core 1"
+   Events Run On: "Core 1"
+   ```
+4. Select your COM port: **Tools → Port → COMx**
+
+### Step 3: Install Required Libraries
+
+Open **Tools → Manage Libraries** and install:
+
+1. **TFT_eSPI** by Bodmer (v2.5.43 or later)
+2. **XPT2046_Touchscreen** by Paul Stoffregen
+3. **RadioLib** (for CC1101, LoRa, nRF24)
+4. **ArduinoJson** (for configuration files)
+
+---
+
+## ⚙️ Configure TFT_eSPI Library
+
+### Method 1: Using User_Setup.h (Recommended)
+
+1. Find TFT_eSPI library folder:
+   
+   - Windows: `Documents\Arduino\libraries\TFT_eSPI`
+   - Mac: `~/Documents/Arduino/libraries/TFT_eSPI`
+   - Linux: `~/Arduino/libraries/TFT_eSPI`
+
+2. Open `User_Setup.h` in a text editor
+
+3. Comment out all default drivers and add:
+
+```cpp
+// ESP32-2432S028R Configuration for Bruce
+
+// Driver
+#define ILI9341_DRIVER    // Use ILI9341 driver (v1/v2 boards)
+// #define ST7789_DRIVER  // Use ST7789 if you have v3 board
+
+// ESP32 Display Pins
+#define TFT_MISO 12
+#define TFT_MOSI 13
+#define TFT_SCLK 14
+#define TFT_CS   15
+#define TFT_DC    2
+#define TFT_RST  -1  // Not connected
+#define TFT_BL   21  // Backlight
+
+// Color correction for BGR wiring
+#define TFT_INVERSION_ON
+#define TFT_RGB_ORDER TFT_BGR
+
+// SPI Frequency
+#define SPI_FREQUENCY  40000000  // 40MHz for display
+#define SPI_READ_FREQUENCY  20000000
+#define SPI_TOUCH_FREQUENCY  2500000  // 2.5MHz for touch
+
+// Font
+#define LOAD_GLCD   // Font 1. Original Adafruit 8 pixel font
+#define LOAD_FONT2  // Font 2. Small 16 pixel high font
+#define LOAD_FONT4  // Font 4. Medium 26 pixel high font
+#define LOAD_FONT6  // Font 6. Large 48 pixel font
+#define LOAD_FONT7  // Font 7. 7 segment 48 pixel font
+#define LOAD_FONT8  // Font 8. Large 75 pixel font
+#define LOAD_GFXFF  // FreeFonts
+
+#define SMOOTH_FONT
+```
+
+4. Save and close `User_Setup.h`
+
+### Method 2: Verify Your Board Version
+
+If display shows inverted colors or doesn't work:
+
+**Check your board version:**
+
+- **v1/v2:** Use ILI9341_DRIVER
+- **v3:** Use ST7789_DRIVER
+
+**Test code:**
+
+```cpp
+#include <TFT_eSPI.h>
+TFT_eSPI tft = TFT_eSPI();
+
+void setup() {
+    tft.init();
+    tft.invertDisplay(true);  // Fix BGR color order
+    tft.fillScreen(TFT_RED);   // Should show RED, not BLUE
+}
+```
+
+---
+
+## 🎨 Bruce Touchscreen Test Code
+
+### Basic Display Test
+
+```cpp
+#include <TFT_eSPI.h>
+
+TFT_eSPI tft = TFT_eSPI();
+
+void setup() {
+    Serial.begin(115200);
+    Serial.println("🦈 BRUCE: Display test starting...");
+
+    // Initialize display
+    tft.init();
+    tft.invertDisplay(true);  // Fix color order
+    tft.setRotation(0);       // Portrait mode
+    tft.fillScreen(TFT_BLACK);
+
+    // Display Bruce bootscreen
+    drawBruceBootscreen();
+}
+
+void loop() {
+    // Test pattern
+    delay(2000);
+    testColors();
+}
+
+void drawBruceBootscreen() {
+    tft.fillScreen(TFT_BLACK);
+
+    // Draw shark ASCII art
+    tft.setTextColor(TFT_CYAN, TFT_BLACK);
+    tft.setTextSize(2);
+    tft.setCursor(90, 50);
+    tft.println("/>");
+    tft.setCursor(70, 70);
+    tft.println("//");
+    tft.setCursor(50, 90);
+    tft.println("//");
+    tft.setCursor(30, 110);
+    tft.println("//___");
+
+    // Draw title
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    tft.setTextSize(4);
+    tft.setCursor(40, 150);
+    tft.println("BRUCE");
+
+    // Draw subtitle
+    tft.setTextSize(2);
+    tft.setCursor(30, 195);
+    tft.println("Big Brother");
+
+    // Draw status
+    tft.setTextColor(TFT_GREEN, TFT_BLACK);
+    tft.setCursor(20, 230);
+    tft.println("Mode: ACTIVE");
+
+    // Draw tagline
+    tft.setTextColor(TFT_CYAN, TFT_BLACK);
+    tft.setTextSize(1);
+    tft.setCursor(20, 270);
+    tft.println("Step aside, kid.");
+    tft.setCursor(20, 285);
+    tft.println("I've got this.");
+
+    Serial.println("🦈 BRUCE: Bootscreen displayed");
+}
+
+void testColors() {
+    const uint16_t colors[] = {TFT_RED, TFT_GREEN, TFT_BLUE,
+                               TFT_CYAN, TFT_MAGENTA, TFT_YELLOW};
+    const char* names[] = {"RED", "GREEN", "BLUE",
+                          "CYAN", "MAGENTA", "YELLOW"};
+
+    for (int i = 0; i < 6; i++) {
+        tft.fillScreen(colors[i]);
+        tft.setTextColor(TFT_BLACK, colors[i]);
+        tft.setTextSize(3);
+        tft.setCursor(60, 140);
+        tft.println(names[i]);
+        delay(1000);
+    }
+}
+```
+
+### Touch Test with Calibration
+
+```cpp
+#include <TFT_eSPI.h>
+#include <XPT2046_Touchscreen.h>
+
+TFT_eSPI tft = TFT_eSPI();
+
+// Touch pins
+#define TOUCH_CS 33
+#define TOUCH_IRQ 36
+XPT2046_Touchscreen touch(TOUCH_CS, TOUCH_IRQ);
+
+// Calibration values (adjust after testing)
+#define TOUCH_MIN_X 200
+#define TOUCH_MAX_X 3700
+#define TOUCH_MIN_Y 240
+#define TOUCH_MAX_Y 3800
+
+void setup() {
+    Serial.begin(115200);
+    Serial.println("🦈 BRUCE: Touch test starting...");
+
+    // Initialize display
+    tft.init();
+    tft.invertDisplay(true);
+    tft.setRotation(0);  // Portrait
+    tft.fillScreen(TFT_BLACK);
+
+    // Initialize touch
+    touch.begin();
+    touch.setRotation(0);
+
+    // Draw instructions
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    tft.setTextSize(2);
+    tft.setCursor(20, 20);
+    tft.println("BRUCE TOUCH TEST");
+
+    tft.setTextSize(1);
+    tft.setCursor(20, 60);
+    tft.println("Touch anywhere to test");
+    tft.setCursor(20, 80);
+    tft.println("Check Serial Monitor");
+    tft.setCursor(20, 100);
+    tft.println("for raw values");
+
+    Serial.println("Touch screen to see values");
+}
+
+void loop() {
+    if (touch.touched()) {
+        TS_Point p = touch.getPoint();
+
+        // Map touch coordinates to screen
+        int x = map(p.x, TOUCH_MIN_X, TOUCH_MAX_X, 0, 240);
+        int y = map(p.y, TOUCH_MIN_Y, TOUCH_MAX_Y, 0, 320);
+
+        // Constrain to screen bounds
+        x = constrain(x, 0, 239);
+        y = constrain(y, 0, 319);
+
+        // Print raw and mapped values
+        Serial.printf("Raw: X=%d Y=%d Z=%d | ", p.x, p.y, p.z);
+        Serial.printf("Mapped: X=%d Y=%d\n", x, y);
+
+        // Draw touch point
+        tft.fillCircle(x, y, 3, TFT_CYAN);
+
+        // Show coordinates on screen
+        tft.fillRect(0, 280, 240, 40, TFT_BLACK);
+        tft.setTextColor(TFT_GREEN, TFT_BLACK);
+        tft.setTextSize(2);
+        tft.setCursor(10, 285);
+        tft.printf("X:%3d Y:%3d", x, y);
+
+        delay(50);
+    }
+}
+```
+
+---
+
+## 🦈 Bruce Main Interface Code
+
+### Complete Bruce GUI Example
+
+```cpp
+#include <TFT_eSPI.h>
+#include <XPT2046_Touchscreen.h>
+
+TFT_eSPI tft = TFT_eSPI();
+
+#define TOUCH_CS 33
+#define TOUCH_IRQ 36
+XPT2046_Touchscreen touch(TOUCH_CS, TOUCH_IRQ);
+
+// Touch calibration
+#define TOUCH_MIN_X 200
+#define TOUCH_MAX_X 3700
+#define TOUCH_MIN_Y 240
+#define TOUCH_MAX_Y 3800
+
+// RGB LED pins
+#define LED_RED 4
+#define LED_GREEN 16
+#define LED_BLUE 17
+
+// Button definitions
+struct Button {
+    int x, y, w, h;
+    const char* label;
+    uint16_t color;
+    void (*action)();
+};
+
+// Status variables
+int battery_percent = 87;
+int signals_found = 0;
+const char* status_text = "ARMED";
+bool cc1101_online = false;
+bool nrf24_online = false;
+bool wifi6_online = false;
+
+// Forward declarations
+void drawMainInterface();
+void drawStatusBar();
+void drawModuleStatus();
+void drawButtons();
+void handleTouch(int x, int y);
+void actionHunt();
+void actionScan();
+void actionReplay();
+
+// Button array
+Button buttons[] = {
+    {10, 250, 70, 50, "HUNT", TFT_RED, actionHunt},
+    {85, 250, 70, 50, "SCAN", TFT_YELLOW, actionScan},
+    {160, 250, 70, 50, "REPLAY", TFT_GREEN, actionReplay}
+};
+
+void setup() {
+    Serial.begin(115200);
+    Serial.println("🦈 BRUCE: System online.");
+
+    // Initialize LEDs
+    pinMode(LED_RED, OUTPUT);
+    pinMode(LED_GREEN, OUTPUT);
+    pinMode(LED_BLUE, OUTPUT);
+    setLED(0, 0, 255);  // Blue = ready
+
+    // Initialize display
+    tft.init();
+    tft.invertDisplay(true);
+    tft.setRotation(0);
+
+    // Initialize touch
+    touch.begin();
+    touch.setRotation(0);
+
+    // Show bootscreen
+    drawBruceBootscreen();
+    delay(3000);
+
+    // Draw main interface
+    drawMainInterface();
+
+    Serial.println("🦈 BRUCE: Big brother ready.");
+}
+
+void loop() {
+    // Check for touch input
+    if (touch.touched()) {
+        TS_Point p = touch.getPoint();
+
+        // Map to screen coordinates
+        int x = map(p.x, TOUCH_MIN_X, TOUCH_MAX_X, 0, 240);
+        int y = map(p.y, TOUCH_MIN_Y, TOUCH_MAX_Y, 0, 320);
+
+        x = constrain(x, 0, 239);
+        y = constrain(y, 0, 319);
+
+        handleTouch(x, y);
+
+        delay(200);  // Debounce
+    }
+
+    // Update status periodically
+    static unsigned long lastUpdate = 0;
+    if (millis() - lastUpdate > 5000) {
+        drawStatusBar();
+        lastUpdate = millis();
+    }
+}
+
+void drawBruceBootscreen() {
+    tft.fillScreen(TFT_BLACK);
+
+    // Shark ASCII
+    tft.setTextColor(TFT_CYAN, TFT_BLACK);
+    tft.setTextSize(2);
+    tft.setCursor(90, 50);
+    tft.println("/>");
+    tft.setCursor(70, 70);
+    tft.println("//");
+    tft.setCursor(50, 90);
+    tft.println("//");
+    tft.setCursor(30, 110);
+    tft.println("//___");
+
+    // Title
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    tft.setTextSize(4);
+    tft.setCursor(40, 150);
+    tft.println("BRUCE");
+
+    tft.setTextSize(2);
+    tft.setCursor(30, 195);
+    tft.println("Big Brother");
+
+    // Version
+    tft.setTextSize(1);
+    tft.setCursor(85, 220);
+    tft.println("v1.0.0");
+
+    // Status
+    tft.setTextColor(TFT_GREEN, TFT_BLACK);
+    tft.setTextSize(2);
+    tft.setCursor(20, 250);
+    tft.println("Mode: ACTIVE");
+
+    // Tagline
+    tft.setTextColor(TFT_CYAN, TFT_BLACK);
+    tft.setTextSize(1);
+    tft.setCursor(30, 285);
+    tft.println("Step aside, kid.");
+}
+
+void drawMainInterface() {
+    tft.fillScreen(TFT_BLACK);
+
+    // Header
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    tft.setTextSize(2);
+    tft.setCursor(10, 5);
+    tft.print("BRUCE v1.0");
+
+    // Shark emoji
+    tft.setTextSize(3);
+    tft.setCursor(200, 2);
+    tft.print(">");
+
+    drawStatusBar();
+    drawModuleStatus();
+    drawButtons();
+}
+
+void drawStatusBar() {
+    // Clear status area
+    tft.fillRect(0, 30, 240, 40, TFT_BLACK);
+
+    tft.setTextSize(1);
+    tft.setTextColor(TFT_GREEN, TFT_BLACK);
+    tft.setCursor(10, 35);
+    tft.printf("Status: %s", status_text);
+
+    tft.setCursor(10, 50);
+    tft.printf("Battery: %d%%", battery_percent);
+
+    // Battery icon
+    uint16_t bat_color = battery_percent > 50 ? TFT_GREEN :
+                         battery_percent > 20 ? TFT_YELLOW : TFT_RED;
+    tft.drawRect(200, 48, 30, 15, bat_color);
+    tft.fillRect(230, 53, 3, 5, bat_color);
+    int bat_fill = map(battery_percent, 0, 100, 0, 26);
+    tft.fillRect(202, 50, bat_fill, 11, bat_color);
+}
+
+void drawModuleStatus() {
+    tft.fillRect(0, 80, 240, 150, TFT_DARKGREY);
+    tft.drawRect(0, 80, 240, 150, TFT_WHITE);
+
+    tft.setTextSize(2);
+    tft.setTextColor(TFT_CYAN, TFT_DARKGREY);
+    tft.setCursor(10, 90);
+    tft.println("RF MODULES");
+
+    tft.setTextSize(1);
+
+    // CC1101
+    tft.setTextColor(cc1101_online ? TFT_GREEN : TFT_RED, TFT_DARKGREY);
+    tft.setCursor(10, 120);
+    tft.printf("CC1101:  %s", cc1101_online ? "ONLINE " : "OFFLINE");
+
+    // nRF24
+    tft.setTextColor(nrf24_online ? TFT_GREEN : TFT_RED, TFT_DARKGREY);
+    tft.setCursor(10, 140);
+    tft.printf("nRF24:   %s", nrf24_online ? "ONLINE " : "OFFLINE");
+
+    // WiFi 6
+    tft.setTextColor(wifi6_online ? TFT_GREEN : TFT_RED, TFT_DARKGREY);
+    tft.setCursor(10, 160);
+    tft.printf("WiFi 6:  %s", wifi6_online ? "ONLINE " : "OFFLINE");
+
+    // Signals found
+    tft.setTextColor(TFT_WHITE, TFT_DARKGREY);
+    tft.setTextSize(2);
+    tft.setCursor(10, 190);
+    tft.printf("Signals: %d", signals_found);
+}
+
+void drawButtons() {
+    for (int i = 0; i < 3; i++) {
+        Button* btn = &buttons[i];
+
+        // Draw button
+        tft.fillRoundRect(btn->x, btn->y, btn->w, btn->h, 8, btn->color);
+        tft.drawRoundRect(btn->x, btn->y, btn->w, btn->h, 8, TFT_WHITE);
+
+        // Draw label
+        tft.setTextColor(TFT_BLACK, btn->color);
+        tft.setTextSize(2);
+        int label_x = btn->x + (btn->w - strlen(btn->label) * 12) / 2;
+        int label_y = btn->y + (btn->h - 16) / 2;
+        tft.setCursor(label_x, label_y);
+        tft.print(btn->label);
+    }
+}
+
+void handleTouch(int x, int y) {
+    Serial.printf("Touch: X=%d Y=%d\n", x, y);
+
+    // Check button presses
+    for (int i = 0; i < 3; i++) {
+        Button* btn = &buttons[i];
+        if (x >= btn->x && x <= btn->x + btn->w &&
+            y >= btn->y && y <= btn->y + btn->h) {
+
+            Serial.printf("Button pressed: %s\n", btn->label);
+
+            // Visual feedback
+            tft.fillRoundRect(btn->x, btn->y, btn->w, btn->h, 8, TFT_WHITE);
+            delay(100);
+            drawButtons();
+
+            // Execute action
+            if (btn->action) {
+                btn->action();
+            }
+            break;
+        }
+    }
+}
+
+void actionHunt() {
+    Serial.println("🦈 BRUCE: Hunting mode activated");
+    status_text = "HUNTING";
+    setLED(255, 255, 0);  // Yellow
+    drawStatusBar();
+}
+
+void actionScan() {
+    Serial.println("🦈 BRUCE: Scanning frequencies");
+    status_text = "SCANNING";
+    setLED(255, 0, 0);  // Red
+    signals_found++;
+    drawStatusBar();
+    drawModuleStatus();
+}
+
+void actionReplay() {
+    Serial.println("🦈 BRUCE: Replaying signal");
+    status_text = "REPLAYING";
+    setLED(0, 255, 0);  // Green
+    drawStatusBar();
+}
+
+void setLED(int r, int g, int b) {
+    analogWrite(LED_RED, 255 - r);     // Inverted (common anode)
+    analogWrite(LED_GREEN, 255 - g);
+    analogWrite(LED_BLUE, 255 - b);
+}
+```
+
+---
+
+## 🎯 Next Steps for Bruce
+
+1. **Test touchscreen with basic code** ✓
+2. **Implement Bruce GUI** ✓
+3. **Add CC1101 RF module control** (next)
+4. **Add nRF24 control** (next)
+5. **Add ESP32-C6 WiFi 6 integration** (next)
+6. **Add spectrum analyzer visualization**
+7. **Add signal capture/replay**
+
+---
+
+## 📚 Resources
+
+- [Random Nerd Tutorials - ESP32-2432S028R Guide](https://randomnerdtutorials.com/cheap-yellow-display-esp32-2432s028r/)
+- [Random Nerd Tutorials - ESP32 TFT Touchscreen](https://randomnerdtutorials.com/esp32-tft-touchscreen-display-2-8-ili9341-arduino/)
+- [GitHub - Touch Calibration Repository](https://github.com/CF20852/ESP32-2432S028-Touchscreen-Calibration)
+- [Bodmer TFT_eSPI Library](https://github.com/Bodmer/TFT_eSPI)
+- [Kafkar Projects - Mastering CYD](https://kafkar.com/projects/smart-home/mastering-the-cyd-your-ultimate-beginners-guide-to-the-cheap-yellow-display-esp32-2432s028r-using-platform-io/)
+
+---
+
+**Bruce Status:** Ready to dominate with touchscreen GUI
+**Display:** 2.8" full-color, 240x320, 65K colors
+**Touch:** XPT2046 resistive touchscreen
+**Cost:** £0 (you have it!)
+
+**Big brother is ready to show off.** 🦈

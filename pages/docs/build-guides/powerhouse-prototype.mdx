@@ -1,0 +1,1746 @@
+# Bruce Powerhouse - Breadboard Prototype Build Guide 🦈
+
+**Configuration**: "The Bruce Powerhouse" (Recommended)
+**Build Type**: Breadboard Prototype (Phase 1)
+**Difficulty**: Intermediate
+**Time Estimate**: 4-6 hours
+**GitHub**: https://github.com/dazeb/bruce
+
+---
+
+## 🎯 What You're Building
+
+**"The Bruce Powerhouse"** - Bruce's ultimate configuration featuring:
+
+```
+Waveshare ESP32-S3-WROOM-1 (240MHz, 16MB+8MB)
+├─ DollaTek 2.8" ILI9341 TFT Touch Display (SPI3)
+├─ CC1101 433MHz Sub-GHz Radio (SPI1)
+├─ nRF24L01+ PA/LNA 2.4GHz Radio (SPI2)
+├─ Raspberry Pi Pico 2 W GPIO Expansion (I2C)
+└─ Waveshare ESP32-C6 WiFi 6 Co-Processor (I2C)
+```
+
+**This guide covers Phase 1**: ESP32-S3 + DollaTek Display + CC1101 Radio
+
+---
+
+## 📦 Parts Checklist
+
+### ✅ From Your Inventory
+
+**Primary Controller:**
+- [ ] Waveshare ESP32-S3-WROOM-1 Development Board
+
+**Display:**
+- [ ] DollaTek 2.8" ILI9341 TFT Touch Display Module
+- [ ] Touch pen (included with display)
+
+**RF Module:**
+- [ ] CC1101 433MHz RF Transceiver
+- [ ] SMA antenna rod (included with CC1101)
+
+**From ELEGOO Kit:**
+- [ ] 1× 830-point breadboard (or larger)
+- [ ] 30+ Male-to-male jumper wires (various colors)
+- [ ] 10+ Female-to-male DuPont wires
+- [ ] 2× 4.7kΩ resistors (for I2C pull-ups) ⚠️ CRITICAL
+- [ ] 2× 330Ω resistors (for LEDs)
+- [ ] 2× LEDs (1 red, 1 blue/green for status)
+- [ ] 1× 10µF capacitor (optional but recommended)
+- [ ] 1× USB-C cable (for ESP32-S3)
+
+**From Miuzei Kit:**
+- [ ] Power supply module (MB102 or similar)
+- [ ] Additional breadboard (optional for expansion)
+
+### ⚠️ Critical Component: I2C Pull-up Resistors
+
+**You MUST have 4.7kΩ resistors!**
+- **Color code**: Yellow-Violet-Red-Gold (4-7-×100-±5%)
+- **Acceptable range**: 3.3kΩ to 10kΩ (4.7kΩ is ideal)
+- **Needed**: 2 resistors minimum (1 for SDA, 1 for SCL)
+- **If you don't have them**: Order immediately (£1-2 for pack of 20)
+
+---
+
+## 🔧 Tools Required
+
+- [ ] Soldering iron (if headers need soldering)
+- [ ] Solder and flux
+- [ ] Wire strippers (for antenna)
+- [ ] Multimeter (for continuity testing)
+- [ ] Ruler (for measuring antenna length)
+- [ ] Small screwdriver (for adjusting components)
+- [ ] Laptop/PC with USB-C port
+- [ ] Good lighting and magnification (recommended)
+
+---
+
+## 📐 Breadboard Layout Planning
+
+### Power Distribution Strategy
+
+```
+ELEGOO 830-Point Breadboard (or equivalent)
+
+Power Rails (BOTH sides):
+  [+] Red Rail    ────────────────  3.3V from ESP32-S3
+  [-] Blue/Black  ────────────────  GND from ESP32-S3
+
+╔═══════════════════════════════════════════════════════════════════╗
+║                     BRUCE POWERHOUSE LAYOUT                        ║
+╠═══════════════════════════════════════════════════════════════════╣
+║                                                                    ║
+║  Section 1 (Rows 1-15): ESP32-S3 Primary Controller               ║
+║  ┌────────────────────────────────────────┐                       ║
+║  │                                         │                       ║
+║  │    Waveshare ESP32-S3-WROOM-1          │                       ║
+║  │    (straddles center gap)              │                       ║
+║  │                                         │                       ║
+║  └────────────────────────────────────────┘                       ║
+║                                                                    ║
+║  Section 2 (Rows 16-25): CC1101 RF Module                         ║
+║  ┌─────────────┐                                                  ║
+║  │   CC1101    │  [Antenna]                                       ║
+║  │  433MHz RF  │    │                                             ║
+║  └─────────────┘    └─ 17.3cm wire antenna                        ║
+║                                                                    ║
+║  Section 3 (Rows 26-50): DollaTek 2.8" TFT Display                ║
+║  ┌─────────────────────────────┐                                  ║
+║  │                             │                                  ║
+║  │  DollaTek ILI9341 Display   │                                  ║
+║  │  (2.8" TFT Touch)           │                                  ║
+║  │                             │                                  ║
+║  └─────────────────────────────┘                                  ║
+║                                                                    ║
+║  Section 4 (Rows 51-55): I2C Pull-ups & Status LEDs               ║
+║  [4.7kΩ] [4.7kΩ]  [Red LED + 330Ω]  [Blue LED + 330Ω]            ║
+║   (SDA)   (SCL)       (Error)           (Activity)                ║
+║                                                                    ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+[+] ──────────────────────────────────────────────────────── [+] 3.3V
+[-] ──────────────────────────────────────────────────────── [-] GND
+```
+
+---
+
+## 🔌 Complete Wiring Diagram
+
+### ESP32-S3 to Power Rails
+
+```
+ESP32-S3 Power Distribution:
+┌─────────────────────────────────────┐
+│  Waveshare ESP32-S3-WROOM-1         │
+│                                     │
+│  3V3 Pin ───────────► [+] Red Rail  │  Supply 3.3V to all components
+│  GND Pin ───────────► [-] Black Rail│  Common ground
+│                                     │
+│  (Multiple GND pins available)      │
+└─────────────────────────────────────┘
+
+CRITICAL: ESP32-S3 operates at 3.3V ONLY!
+⚠️ Never connect 5V to GPIO pins - instant destruction!
+```
+
+### I2C Pull-up Resistors (MUST DO FIRST!)
+
+```
+I2C Pull-up Configuration (REQUIRED for reliable operation):
+
+         3.3V (+) Rail
+            │
+            ├─── [4.7kΩ] ───┬─── SDA (GPIO21)
+            │                │
+            └─── [4.7kΩ] ───┴─── SCL (GPIO22)
+
+Why This Is Critical:
+- I2C is an open-drain bus and REQUIRES pull-ups
+- Without pull-ups: Communication will fail or be unreliable
+- 4.7kΩ is ideal for multiple devices at moderate speeds
+- 10kΩ works but may cause issues with multiple devices
+- 3.3kΩ also works but draws more current
+
+Physical Placement:
+- Place resistors near the ESP32-S3
+- Keep leads short to minimize noise
+- Verify connections with multimeter (should read ~4.7kΩ)
+```
+
+### SPI3 Bus - DollaTek 2.8" ILI9341 Display
+
+```
+ESP32-S3 to DollaTek ILI9341 TFT Display (SPI3 Bus):
+
+DollaTek Display Pin    ESP32-S3 GPIO    Notes
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VCC                     3.3V (+) Rail    Power (3.3V or 5V, module has regulator)
+GND                     GND (-) Rail     Ground
+CS  (Chip Select)       GPIO15           Active LOW, dedicates display
+RESET                   GPIO4            Display reset (active LOW)
+DC  (Data/Command)      GPIO2            LOW=Command, HIGH=Data
+MOSI (SDI/SDA)          GPIO23           Master Out Slave In (SPI data to display)
+SCK  (Clock)            GPIO18           SPI clock signal
+LED (Backlight)         3.3V (+) Rail    Backlight power (or PWM via GPIO for dimming)
+MISO (SDO)              GPIO19           Master In Slave Out (optional for SD card)
+
+Touch Controller (XPT2046):
+T_CLK                   GPIO18           Shared with display SPI clock
+T_CS                    GPIO14           Touch controller chip select
+T_DIN                   GPIO23           Shared with display MOSI
+T_DO                    GPIO19           Shared with display MISO
+T_IRQ                   GPIO27           Touch interrupt (optional, can poll instead)
+
+SD Card Slot (Optional):
+SD_CS                   GPIO13           SD card chip select
+SD_MOSI                 GPIO23           Shared with display
+SD_MISO                 GPIO19           Shared with display
+SD_SCK                  GPIO18           Shared with display
+
+Wiring Notes:
+- Use SHORT jumper wires (6-8cm max) for SPI signals to reduce noise
+- Keep MOSI, MISO, SCK, and CS lines parallel and close together
+- Test continuity with multimeter before powering on
+- The module has onboard 3.3V regulator, so 5V or 3.3V power works
+- For best results, use 3.3V directly from ESP32-S3
+```
+
+**Physical Wiring Order** (recommended sequence):
+1. Connect GND first (establishes common ground)
+2. Connect VCC (power)
+3. Connect CS, RESET, DC (control signals)
+4. Connect MOSI, MISO, SCK (SPI data lines)
+5. Connect LED (backlight)
+6. Connect touch pins if using touch
+7. Test with multimeter before power-on
+
+### SPI1 Bus - CC1101 433MHz RF Module
+
+```
+ESP32-S3 to CC1101 433MHz RF Transceiver (SPI1 Bus):
+
+CC1101 Pin       ESP32-S3 GPIO    Notes
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VCC              3.3V (+) Rail    Power (3.3V ONLY! 5V will destroy it!)
+GND              GND (-) Rail     Ground
+MOSI             GPIO13           Master Out Slave In (data to CC1101)
+MISO             GPIO12           Master In Slave Out (data from CC1101)
+SCK              GPIO14           SPI clock (note: different from display!)
+CS (CSN)         GPIO5            Chip Select (active LOW)
+GDO0             GPIO25           Interrupt/RX data (REQUIRED for operation)
+GDO2             GPIO26           Optional status output
+
+⚠️ CRITICAL SAFETY WARNINGS:
+- CC1101 is 3.3V ONLY! Connecting 5V will permanently damage it!
+- Verify voltage with multimeter before connecting VCC
+- GDO0 MUST be connected for interrupt-driven TX/RX
+- Without GDO0, module will not function properly
+
+Antenna Connection:
+- Solder 17.3cm straight wire to ANT pad for 433MHz quarter-wave
+- For 315MHz: use 23.8cm wire
+- For 915MHz: use 8.2cm wire
+- Use solid-core wire from ELEGOO kit
+- Keep antenna away from power wires to reduce noise
+
+Wiring Notes:
+- Use separate SPI bus (SPI1) from display (SPI3) to avoid conflicts
+- Add 10µF capacitor between VCC and GND near the module (reduces power noise)
+- Keep wiring short and neat
+- Test with multimeter before powering on
+```
+
+**Antenna Construction** (433MHz):
+```
+Materials:
+- Solid-core wire from ELEGOO kit
+- Wire strippers
+- Ruler
+- Soldering iron and solder
+
+Steps:
+1. Cut solid-core wire to 17.3cm length (6.8 inches)
+2. Strip 5mm insulation from one end
+3. Tin the stripped end with solder
+4. Solder to ANT pad on CC1101 module
+5. Ensure antenna stands vertically or at 45° angle
+6. Keep antenna away from other components
+
+Why 17.3cm?
+- Quarter-wavelength for 433MHz
+- Formula: λ/4 = (300,000,000 / frequency) / 4
+- For 433MHz: (300,000,000 / 433,000,000) / 4 = 0.173m = 17.3cm
+```
+
+### Status LEDs
+
+```
+Status Indicator LEDs:
+
+LED 1 - Error/Status (Red LED):
+                                    ESP32-S3
+                                       │
+    [Red LED] ──┤►├── [330Ω] ──────── GPIO32 ──┐
+        │                                       │
+        └─────────────── GND (-) Rail ──────────┘
+
+LED 2 - Activity (Blue/Green LED):
+                                    ESP32-S3
+                                       │
+    [Blue LED] ──┤►├── [330Ω] ─────── GPIO33 ──┐
+        │                                       │
+        └─────────────── GND (-) Rail ──────────┘
+
+LED Behavior:
+- Red LED: Lights during errors, boot issues, or critical warnings
+- Blue/Green LED: Blinks during RF activity, data transmission, or processing
+
+Physical Placement:
+- Mount LEDs at edge of breadboard for easy visibility
+- Use different colors for easy distinction
+- Ensure proper polarity (long leg = anode/positive)
+- 330Ω resistor limits current to ~10mA (safe for LEDs and GPIO)
+```
+
+---
+
+## 🔢 Complete Pin Assignment Table
+
+### ESP32-S3 GPIO Allocation (Bruce Powerhouse Phase 1)
+
+| GPIO | Function | Device | Direction | Notes |
+|------|----------|--------|-----------|-------|
+| **SPI3 - Display** ||||
+| GPIO23 | MOSI | ILI9341 Display | Output | SPI data to display |
+| GPIO19 | MISO | ILI9341 Display | Input | SPI data from display |
+| GPIO18 | SCK | ILI9341 Display | Output | SPI clock |
+| GPIO15 | CS | ILI9341 Display | Output | Display chip select |
+| GPIO2 | DC | ILI9341 Display | Output | Data/Command select |
+| GPIO4 | RESET | ILI9341 Display | Output | Display reset |
+| GPIO14 | T_CS | XPT2046 Touch | Output | Touch chip select |
+| GPIO27 | T_IRQ | XPT2046 Touch | Input | Touch interrupt (optional) |
+| GPIO13 | SD_CS | MicroSD | Output | SD card chip select (optional) |
+| **SPI1 - CC1101 RF** ||||
+| GPIO13 | MOSI | CC1101 | Output | SPI data to CC1101 |
+| GPIO12 | MISO | CC1101 | Input | SPI data from CC1101 |
+| GPIO14 | SCK | CC1101 | Output | SPI clock (alt bus) |
+| GPIO5 | CS | CC1101 | Output | CC1101 chip select |
+| GPIO25 | GDO0 | CC1101 | Input | RX/TX interrupt |
+| GPIO26 | GDO2 | CC1101 | Input | Status output (optional) |
+| **I2C - Future Expansion** ||||
+| GPIO21 | SDA | I2C Bus | Bidirectional | 4.7kΩ pull-up to 3.3V |
+| GPIO22 | SCL | I2C Bus | Output | 4.7kΩ pull-up to 3.3V |
+| **Status & Debug** ||||
+| GPIO32 | LED_ERROR | Red LED | Output | Error indicator |
+| GPIO33 | LED_ACTIVITY | Blue LED | Output | Activity indicator |
+| GPIO1 | TX0 | USB Debug | Output | Serial debug (built-in) |
+| GPIO3 | RX0 | USB Debug | Input | Serial debug (built-in) |
+| **UART - Flipper Zero (Future)** ||||
+| GPIO16 | RX | Flipper | Input | Receive from Flipper |
+| GPIO17 | TX | Flipper | Output | Transmit to Flipper |
+| **Reserved** ||||
+| GPIO6-11 | Flash | SPI Flash | - | DO NOT USE (flash memory) |
+
+---
+
+## 🛠️ Step-by-Step Build Instructions
+
+### Step 1: Prepare Your Workspace (15 minutes)
+
+1. **Clear a large, well-lit workspace**
+   - At least 2 feet × 2 feet of clear space
+   - Good overhead lighting
+   - Anti-static mat (if available)
+   - Nearby power outlet for laptop
+
+2. **Organize components**
+   - Separate all components by type
+   - Keep small parts in containers
+   - Label resistors by value
+   - Keep datasheet/documentation nearby
+
+3. **Test tools**
+   - Verify multimeter batteries
+   - Test soldering iron (if needed)
+   - Ensure USB cable works
+   - Have spare jumper wires ready
+
+4. **Safety check**
+   - No liquids near workspace
+   - Fire extinguisher nearby (soldering)
+   - Good ventilation (for soldering)
+   - Clear escape path
+
+### Step 2: Verify Components (20 minutes)
+
+1. **Check ESP32-S3 board**
+   - [ ] Inspect for physical damage
+   - [ ] Verify all pins are straight
+   - [ ] Check USB-C connector
+   - [ ] Look for any shorts with multimeter
+   - [ ] Verify 3.3V regulator is present
+
+2. **Check DollaTek Display**
+   - [ ] Inspect LCD screen (no cracks)
+   - [ ] Verify all pins are labeled
+   - [ ] Check for bent pins
+   - [ ] Test touch pen response (gently)
+   - [ ] Verify SD card slot is clear
+
+3. **Check CC1101 module**
+   - [ ] ⚠️ CRITICAL: Verify it's a 3.3V module!
+   - [ ] Inspect antenna connector
+   - [ ] Check all pins are present
+   - [ ] Verify crystal oscillator is intact
+   - [ ] No visible damage to RF components
+
+4. **Check resistors**
+   - [ ] Identify 4.7kΩ resistors (Yellow-Violet-Red-Gold)
+   - [ ] Identify 330Ω resistors (Orange-Orange-Brown-Gold)
+   - [ ] Test with multimeter to confirm values
+   - [ ] Set aside in labeled container
+
+5. **Check LEDs**
+   - [ ] Identify anode (long leg) and cathode (short leg)
+   - [ ] Test with multimeter diode mode
+   - [ ] Verify colors are distinct
+
+### Step 3: Install Power Rails (15 minutes)
+
+1. **Connect ESP32-S3 to breadboard**
+   ```
+   - Place ESP32-S3 straddling the center gap
+   - Ensure it sits firmly (no wobbling)
+   - Pins should align with rows on both sides
+   - Leave space above and below for wiring
+   ```
+
+2. **Wire 3.3V power distribution**
+   ```
+   Step-by-step:
+   1. Identify 3.3V pin on ESP32-S3 (check pinout diagram)
+   2. Use RED jumper wire from 3.3V pin to [+] rail (left side)
+   3. Use RED jumper wire to bridge [+] rails (left to right)
+   4. Verify with multimeter: Should read 0Ω resistance
+   ```
+
+3. **Wire GND distribution**
+   ```
+   Step-by-step:
+   1. Identify GND pins on ESP32-S3 (multiple available)
+   2. Use BLACK jumper wire from GND pin to [-] rail (left side)
+   3. Use BLACK jumper wire to bridge [-] rails (left to right)
+   4. Verify with multimeter: Should read 0Ω resistance
+   5. CRITICAL: Test for shorts between [+] and [-] rails
+      - Multimeter should read >1MΩ (open circuit)
+      - If short detected, find and fix before continuing!
+   ```
+
+4. **Add power decoupling (recommended)**
+   ```
+   - Place 10µF capacitor across [+] and [-] rails near ESP32-S3
+   - Capacitor positive leg to [+], negative leg to [-]
+   - This reduces power supply noise
+   ```
+
+### Step 4: Install I2C Pull-up Resistors (10 minutes)
+
+**CRITICAL STEP - Required for future I2C devices!**
+
+```
+Physical Installation:
+
+1. Locate GPIO21 (SDA) and GPIO22 (SCL) on ESP32-S3
+
+2. Install 4.7kΩ resistor for SDA:
+   - One leg to [+] 3.3V rail
+   - Other leg to GPIO21 (SDA)
+   - Bend legs to fit breadboard holes
+   - Push firmly into place
+
+3. Install 4.7kΩ resistor for SCL:
+   - One leg to [+] 3.3V rail
+   - Other leg to GPIO22 (SCL)
+   - Ensure good contact
+
+4. Verify installation:
+   - Multimeter from GPIO21 to 3.3V: should read ~4.7kΩ
+   - Multimeter from GPIO22 to 3.3V: should read ~4.7kΩ
+   - Multimeter from GPIO21 to GND: should read ~4.7kΩ (through resistor)
+   - Multimeter from GPIO22 to GND: should read ~4.7kΩ (through resistor)
+
+Why This Matters:
+- Without pull-ups, I2C communication will fail
+- Many devices in later phases use I2C
+- Pull-ups ensure signal integrity
+- Industry standard is 4.7kΩ for I2C
+```
+
+### Step 5: Wire Status LEDs (15 minutes)
+
+1. **Install Red Error LED**
+   ```
+   Physical Placement:
+   - Choose a row near the edge of breadboard (easy to see)
+   - Insert LED with correct polarity:
+     - Long leg (anode) goes to resistor
+     - Short leg (cathode) goes to GND rail
+
+   Wiring:
+   1. Insert red LED into breadboard
+   2. Connect 330Ω resistor from LED anode to empty row
+   3. Jumper wire from resistor to ESP32-S3 GPIO32
+   4. Connect LED cathode (short leg) to [-] GND rail
+   5. Verify: Multimeter continuity from GPIO32 to LED to GND
+   ```
+
+2. **Install Blue/Green Activity LED**
+   ```
+   Physical Placement:
+   - Place next to red LED for easy comparison
+   - Same polarity rules apply
+
+   Wiring:
+   1. Insert blue/green LED into breadboard
+   2. Connect 330Ω resistor from LED anode to empty row
+   3. Jumper wire from resistor to ESP32-S3 GPIO33
+   4. Connect LED cathode (short leg) to [-] GND rail
+   5. Verify: Multimeter continuity from GPIO33 to LED to GND
+   ```
+
+3. **Test LEDs (before connecting display)**
+   ```
+   Pre-flight LED Test:
+   1. Connect ESP32-S3 to laptop via USB-C
+   2. Upload simple LED blink code (see firmware section below)
+   3. Verify both LEDs blink in sequence
+   4. If LEDs don't light:
+      - Check polarity (flip LED if needed)
+      - Verify resistor value (should be 330Ω)
+      - Test LED with multimeter diode mode
+      - Check GPIO pin connections
+   ```
+
+### Step 6: Wire DollaTek ILI9341 Display (45 minutes)
+
+**Take your time with this step - it's complex!**
+
+1. **Plan display placement**
+   ```
+   - Display is large and will occupy rows 26-50 (approx)
+   - Position so wires can reach ESP32-S3 comfortably
+   - Ensure display doesn't block status LEDs
+   - Leave room for CC1101 module above or below
+   ```
+
+2. **Wire power first**
+   ```
+   CRITICAL: Do this before any signal wires!
+
+   1. VCC pin on display → [+] 3.3V rail (RED wire)
+   2. GND pin on display → [-] GND rail (BLACK wire)
+   3. LED pin (backlight) → [+] 3.3V rail (RED wire)
+      - For PWM dimming, connect to GPIO instead
+   4. VERIFY with multimeter:
+      - VCC to GND should show ~0V (power is off)
+      - No shorts between VCC and GND
+   ```
+
+3. **Wire SPI control signals**
+   ```
+   Use SHORT jumper wires (6-8cm preferred)!
+
+   CS (Chip Select):
+   - Display CS pin → ESP32-S3 GPIO15
+   - Wire color: ORANGE (recommended)
+
+   RESET:
+   - Display RESET pin → ESP32-S3 GPIO4
+   - Wire color: YELLOW (recommended)
+
+   DC (Data/Command):
+   - Display DC pin → ESP32-S3 GPIO2
+   - Wire color: GREEN (recommended)
+   ```
+
+4. **Wire SPI data lines**
+   ```
+   KEEP THESE WIRES PARALLEL AND CLOSE TOGETHER!
+
+   MOSI (Master Out Slave In):
+   - Display MOSI/SDI pin → ESP32-S3 GPIO23
+   - Wire color: BLUE (recommended)
+
+   MISO (Master In Slave Out):
+   - Display MISO/SDO pin → ESP32-S3 GPIO19
+   - Wire color: PURPLE (recommended)
+
+   SCK (Clock):
+   - Display SCK pin → ESP32-S3 GPIO18
+   - Wire color: WHITE/GRAY (recommended)
+   ```
+
+5. **Wire touch controller (optional but recommended)**
+   ```
+   Touch Controller Pins:
+
+   T_CS (Touch Chip Select):
+   - Display T_CS pin → ESP32-S3 GPIO14
+   - Wire color: PINK (recommended)
+
+   T_CLK, T_DIN, T_DO:
+   - These share SPI bus with display (already connected)
+   - No additional wiring needed
+
+   T_IRQ (Touch Interrupt - optional):
+   - Display T_IRQ pin → ESP32-S3 GPIO27
+   - Can poll touch instead of using interrupt
+   ```
+
+6. **Wire SD card slot (optional)**
+   ```
+   If using SD card for data logging:
+
+   SD_CS (SD Chip Select):
+   - Display SD_CS pin → ESP32-S3 GPIO13
+   - Wire color: BROWN (recommended)
+
+   SD_MOSI, SD_MISO, SD_SCK:
+   - These share SPI bus with display (already connected)
+   ```
+
+7. **Double-check all display connections**
+   ```
+   Verification Checklist:
+   [ ] VCC → 3.3V rail
+   [ ] GND → GND rail
+   [ ] LED → 3.3V rail
+   [ ] CS → GPIO15
+   [ ] RESET → GPIO4
+   [ ] DC → GPIO2
+   [ ] MOSI → GPIO23
+   [ ] MISO → GPIO19
+   [ ] SCK → GPIO18
+   [ ] T_CS → GPIO14 (if using touch)
+   [ ] T_IRQ → GPIO27 (if using interrupt)
+   [ ] SD_CS → GPIO13 (if using SD card)
+
+   Continuity Test:
+   - Use multimeter to verify each connection
+   - Check for shorts between adjacent pins
+   - Ensure no pins are bridged accidentally
+   ```
+
+### Step 7: Build and Install CC1101 Antenna (30 minutes)
+
+1. **Prepare antenna wire**
+   ```
+   Materials:
+   - Solid-core wire from ELEGOO kit (22AWG or 24AWG)
+   - Wire strippers
+   - Ruler or measuring tape
+   - Soldering iron and solder
+
+   Steps:
+   1. Measure exactly 17.3cm of wire (6.81 inches)
+   2. Cut cleanly with wire cutters
+   3. Strip 5mm (0.2 inches) from one end
+   4. Clean stripped end with isopropyl alcohol
+   5. Tin the stripped end with solder (thin coating)
+   ```
+
+2. **Solder antenna to CC1101**
+   ```
+   Soldering Procedure:
+   1. Secure CC1101 module (use helping hands or vice)
+   2. Identify ANT pad on CC1101 PCB
+   3. Clean ANT pad with isopropyl alcohol
+   4. Apply small amount of flux to ANT pad
+   5. Heat pad with soldering iron (350°C)
+   6. Touch solder to pad until it flows
+   7. Insert tinned wire end into solder
+   8. Remove iron and let cool (don't move wire!)
+   9. Verify connection with gentle tug
+   10. Inspect solder joint (should be shiny and smooth)
+
+   Quality Check:
+   - Solder joint should be concave (not balled up)
+   - Wire should be firmly attached
+   - No cold solder joints (dull, grainy appearance)
+   - Antenna stands straight up or at 45° angle
+   ```
+
+3. **Test antenna connection**
+   ```
+   Multimeter Test:
+   - Continuity from ANT pad to wire tip (should beep)
+   - Resistance should be near 0Ω
+   - No shorts to adjacent pads
+   ```
+
+### Step 8: Wire CC1101 RF Module (40 minutes)
+
+**CRITICAL: CC1101 is 3.3V ONLY! 5V will destroy it instantly!**
+
+1. **Position CC1101 on breadboard**
+   ```
+   Placement Strategy:
+   - Keep CC1101 away from ESP32-S3 (reduce interference)
+   - Position so antenna doesn't cross power wires
+   - Ensure good access to all pins
+   - Leave room for future nRF24L01+ module
+   ```
+
+2. **Add power decoupling capacitor (highly recommended)**
+   ```
+   Why: CC1101 draws power spikes during TX, needs clean power
+
+   Installation:
+   1. Place 10µF capacitor next to CC1101 module
+   2. Positive leg to VCC pin of CC1101
+   3. Negative leg to GND pin of CC1101
+   4. Keep leads short (< 5mm)
+   ```
+
+3. **Wire CC1101 power**
+   ```
+   ⚠️ VERIFY 3.3V WITH MULTIMETER FIRST!
+
+   1. Measure voltage at [+] rail with multimeter
+   2. Should read 3.3V (±0.1V)
+   3. If >3.6V, STOP! Do not connect CC1101!
+   4. If voltage OK:
+      - CC1101 VCC pin → [+] 3.3V rail (RED wire)
+      - CC1101 GND pin → [-] GND rail (BLACK wire)
+   ```
+
+4. **Wire CC1101 SPI signals**
+   ```
+   Use different SPI bus from display to avoid conflicts!
+
+   MOSI:
+   - CC1101 MOSI pin → ESP32-S3 GPIO13
+   - Wire color: BLUE
+
+   MISO:
+   - CC1101 MISO pin → ESP32-S3 GPIO12
+   - Wire color: PURPLE
+
+   SCK:
+   - CC1101 SCK pin → ESP32-S3 GPIO14
+   - Wire color: WHITE/GRAY
+
+   CS (CSN):
+   - CC1101 CS/CSN pin → ESP32-S3 GPIO5
+   - Wire color: ORANGE
+   ```
+
+5. **Wire CC1101 control signals**
+   ```
+   CRITICAL: GDO0 MUST be connected!
+
+   GDO0 (RX/TX Interrupt):
+   - CC1101 GDO0 pin → ESP32-S3 GPIO25
+   - Wire color: GREEN
+   - This is REQUIRED for CC1101 operation!
+
+   GDO2 (Status - optional):
+   - CC1101 GDO2 pin → ESP32-S3 GPIO26
+   - Wire color: YELLOW
+   - Optional but recommended for debugging
+   ```
+
+6. **Verify CC1101 wiring**
+   ```
+   Verification Checklist:
+   [ ] VCC → 3.3V rail (verified with multimeter!)
+   [ ] GND → GND rail
+   [ ] MOSI → GPIO13
+   [ ] MISO → GPIO12
+   [ ] SCK → GPIO14
+   [ ] CS → GPIO5
+   [ ] GDO0 → GPIO25 (REQUIRED!)
+   [ ] GDO2 → GPIO26 (optional)
+   [ ] 10µF capacitor across VCC and GND
+   [ ] Antenna soldered and standing upright
+   [ ] No shorts between VCC and GND
+   [ ] No shorts between adjacent pins
+   ```
+
+### Step 9: Final Hardware Verification (30 minutes)
+
+**CRITICAL: Do this before powering on!**
+
+1. **Visual inspection**
+   ```
+   Check for:
+   [ ] No loose wires
+   [ ] No wire insulation trapped in breadboard holes
+   [ ] All components seated firmly
+   [ ] No bent pins or broken connections
+   [ ] Power and ground wires are correct colors
+   [ ] No wires crossing underneath components
+   [ ] Antenna is not touching other components
+   [ ] LEDs are correct polarity
+   [ ] Capacitors are correct polarity
+   ```
+
+2. **Continuity testing**
+   ```
+   Use multimeter continuity mode:
+
+   Test each signal path:
+   1. ESP32-S3 GPIO → Component pin
+   2. Should beep or show <10Ω resistance
+   3. Test ALL connections in pin assignment table
+
+   Test power rails:
+   1. [+] rail left side → [+] rail right side (should beep)
+   2. [-] rail left side → [-] rail right side (should beep)
+   3. [+] rail → [-] rail (should NOT beep, open circuit)
+   ```
+
+3. **Short circuit testing**
+   ```
+   CRITICAL TEST - prevents damage!
+
+   1. Multimeter in resistance mode (Ω)
+   2. Test between [+] and [-] rails
+   3. Should read >1MΩ (open circuit)
+   4. If <100kΩ: FIND AND FIX SHORT!
+   5. Test between adjacent GPIO pins
+   6. Should read open circuit (>1MΩ)
+   ```
+
+4. **Component-specific tests**
+   ```
+   ESP32-S3:
+   - Check USB-C connector for debris
+   - Verify no bent pins
+   - Check for burn marks or damage
+
+   Display:
+   - Screen should be clear (no cracks)
+   - Pins should be straight
+   - No visible damage to PCB
+
+   CC1101:
+   - Antenna connection is solid
+   - Crystal oscillator is intact
+   - No damaged RF components
+   ```
+
+5. **Photo documentation**
+   ```
+   Take clear photos:
+   - Overall breadboard layout
+   - Close-up of each module's wiring
+   - Power rail connections
+   - Any custom modifications
+
+   Why: Makes troubleshooting easier later
+   ```
+
+### Step 10: First Power-On Test (20 minutes)
+
+**Moment of truth! Let's see if Bruce comes alive! 🦈**
+
+1. **Pre-power checklist**
+   ```
+   Final Safety Check:
+   [ ] All wiring verified
+   [ ] No shorts detected
+   [ ] USB cable is good quality
+   [ ] Laptop USB port works
+   [ ] Room is well-lit (to see any smoke/sparks)
+   [ ] Fire extinguisher nearby (just in case)
+   [ ] Camera ready for photos
+   ```
+
+2. **Initial power-on**
+   ```
+   Procedure:
+   1. Keep hand on USB cable (ready to unplug quickly)
+   2. Connect ESP32-S3 to laptop via USB-C
+   3. Watch for:
+      - LED on ESP32-S3 board (should light up)
+      - Display backlight (should turn on)
+      - Status LEDs (may blink during boot)
+      - Any smoke, sparks, or burning smell (UNPLUG IMMEDIATELY!)
+   4. Feel components with finger:
+      - ESP32-S3 should be cool or slightly warm
+      - Display should be cool
+      - CC1101 should be cool
+      - If anything is HOT, unplug immediately!
+   ```
+
+3. **Check power consumption**
+   ```
+   If laptop shows USB power info:
+   - Should draw 200-400mA initially
+   - If >1A: possible short, unplug and investigate
+   - If 0mA: no power, check USB cable
+
+   Normal power consumption:
+   - ESP32-S3 idle: ~80-150mA
+   - Display: ~40-80mA
+   - CC1101 idle: ~1-2mA
+   - Total: ~120-230mA (without WiFi)
+   ```
+
+4. **Display test**
+   ```
+   At power-on:
+   - Backlight should turn on (white/blue glow)
+   - Screen may show random pixels (normal until firmware loaded)
+   - Touch screen should be responsive (test gently with pen)
+   - No dead pixels or lines (inspect carefully)
+
+   If display doesn't light:
+   - Check LED/VCC connection
+   - Verify power rails have 3.3V
+   - Check display module is not damaged
+   ```
+
+5. **CC1101 test**
+   ```
+   Can't test functionality yet (needs firmware)
+   But check:
+   - CC1101 is cool to touch (not hot)
+   - Antenna is secure
+   - No burning smell
+   - Status LED on CC1101 (if present) may light
+   ```
+
+6. **Serial console test**
+   ```
+   On laptop:
+   1. Open Arduino IDE or PlatformIO
+   2. Open Serial Monitor
+   3. Select correct COM port
+   4. Set baud rate to 115200
+   5. You should see boot messages from ESP32-S3
+
+   Expected output:
+   ESP-ROM:esp32s3-20210327
+   Build:Mar 27 2021
+   rst:0x1 (POWERON),boot:0x8 (SPI_FAST_FLASH_BOOT)
+   ...
+
+   If no output:
+   - Check USB cable (try different one)
+   - Verify COM port is correct
+   - Try different baud rates
+   - Check CP2102N USB-UART bridge is working
+   ```
+
+---
+
+## 💻 Firmware Installation
+
+### Install PlatformIO (if not already installed)
+
+1. **Install VS Code**
+   - Download from https://code.visualstudio.com/
+   - Install with default settings
+
+2. **Install PlatformIO Extension**
+   ```
+   1. Open VS Code
+   2. Click Extensions (Ctrl+Shift+X)
+   3. Search "PlatformIO IDE"
+   4. Click Install
+   5. Restart VS Code
+   ```
+
+3. **Create new PlatformIO project**
+   ```
+   1. Click PlatformIO icon (alien head) in sidebar
+   2. Click "New Project"
+   3. Name: "bruce_powerhouse_test"
+   4. Board: "ESP32-S3-DevKitC-1"
+   5. Framework: "Arduino"
+   6. Location: Choose folder
+   7. Click Finish
+   ```
+
+### Phase 1 Test Firmware
+
+Create a test firmware to verify all hardware is working:
+
+**File: `src/main.cpp`**
+
+```cpp
+// Bruce Powerhouse - Phase 1 Hardware Test Firmware
+// Tests: LEDs, Display, CC1101, Serial output
+
+#include <Arduino.h>
+#include <SPI.h>
+#include <TFT_eSPI.h>
+
+// Pin Definitions - Bruce Powerhouse Configuration
+// Status LEDs
+#define LED_ERROR       32
+#define LED_ACTIVITY    33
+
+// Display SPI3 (ILI9341)
+#define TFT_CS          15
+#define TFT_DC          2
+#define TFT_RST         4
+#define TFT_MOSI        23
+#define TFT_MISO        19
+#define TFT_SCLK        18
+#define TFT_LED         -1  // Connected to 3.3V
+
+// Touch (XPT2046)
+#define TOUCH_CS        14
+#define TOUCH_IRQ       27
+
+// CC1101 SPI1
+#define CC1101_CS       5
+#define CC1101_MOSI     13
+#define CC1101_MISO     12
+#define CC1101_SCK      14
+#define CC1101_GDO0     25
+#define CC1101_GDO2     26
+
+// I2C (for future expansion)
+#define I2C_SDA         21
+#define I2C_SCL         22
+
+// Bruce personality
+const char* BOOT_MSG = R"(
+    />        BRUCE ONLINE
+  //          Big Brother Mode: ACTIVE
+//
+/__           "When your Dolphin needs a Great White"
+)";
+
+TFT_eSPI tft = TFT_eSPI();
+
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+
+  // Print Bruce boot message
+  Serial.println(BOOT_MSG);
+  Serial.println("===========================================");
+  Serial.println("BRUCE Powerhouse - Hardware Test v1.0");
+  Serial.println("===========================================");
+
+  // Initialize LED pins
+  pinMode(LED_ERROR, OUTPUT);
+  pinMode(LED_ACTIVITY, OUTPUT);
+  digitalWrite(LED_ERROR, LOW);
+  digitalWrite(LED_ACTIVITY, LOW);
+
+  Serial.println("[✓] GPIO initialized");
+
+  // Test LEDs
+  Serial.println("[TEST] LED blink test...");
+  for(int i = 0; i < 3; i++) {
+    digitalWrite(LED_ERROR, HIGH);
+    delay(200);
+    digitalWrite(LED_ERROR, LOW);
+    digitalWrite(LED_ACTIVITY, HIGH);
+    delay(200);
+    digitalWrite(LED_ACTIVITY, LOW);
+  }
+  Serial.println("[✓] LEDs working");
+
+  // Initialize I2C (for future)
+  Wire.begin(I2C_SDA, I2C_SCL);
+  Serial.println("[✓] I2C initialized (SDA=21, SCL=22)");
+
+  // Initialize Display
+  Serial.println("[TEST] Initializing display...");
+  tft.init();
+  tft.setRotation(1); // Landscape
+  tft.fillScreen(TFT_BLACK);
+
+  // Draw Bruce branding
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.setTextSize(3);
+  tft.setCursor(20, 20);
+  tft.println("BRUCE");
+
+  tft.setTextSize(1);
+  tft.setCursor(20, 60);
+  tft.println("Big Brother Ultimate");
+  tft.println("Communication Equipment");
+
+  tft.setTextSize(2);
+  tft.setTextColor(TFT_CYAN, TFT_BLACK);
+  tft.setCursor(20, 100);
+  tft.println("Powerhouse Build");
+
+  tft.setTextSize(1);
+  tft.setTextColor(TFT_GREEN, TFT_BLACK);
+  tft.setCursor(20, 130);
+  tft.println("Phase 1: Hardware Test");
+
+  tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+  tft.setCursor(20, 150);
+  tft.println("ESP32-S3: 240MHz BEAST");
+  tft.setCursor(20, 165);
+  tft.println("Display: ILI9341 OK");
+  tft.setCursor(20, 180);
+  tft.println("RF: CC1101 433MHz");
+
+  tft.setTextSize(2);
+  tft.setTextColor(TFT_RED, TFT_BLACK);
+  tft.setCursor(20, 210);
+  tft.println("\"Step aside, kid.\"");
+  tft.setCursor(20, 230);
+  tft.println("I've got this.");
+
+  Serial.println("[✓] Display initialized and tested");
+
+  // Initialize CC1101 (basic SPI test)
+  Serial.println("[TEST] CC1101 SPI test...");
+  pinMode(CC1101_CS, OUTPUT);
+  pinMode(CC1101_GDO0, INPUT);
+  pinMode(CC1101_GDO2, INPUT);
+  digitalWrite(CC1101_CS, HIGH);
+
+  SPI.begin(CC1101_SCK, CC1101_MISO, CC1101_MOSI, CC1101_CS);
+  SPI.setFrequency(1000000); // 1 MHz for testing
+
+  // Try to read CC1101 version register
+  digitalWrite(CC1101_CS, LOW);
+  delayMicroseconds(10);
+  SPI.transfer(0x31 | 0x80); // Read VERSION register
+  uint8_t version = SPI.transfer(0x00);
+  digitalWrite(CC1101_CS, HIGH);
+
+  Serial.print("[INFO] CC1101 VERSION register: 0x");
+  Serial.println(version, HEX);
+
+  if(version == 0x14 || version == 0x04) {
+    Serial.println("[✓] CC1101 detected and responding!");
+    digitalWrite(LED_ACTIVITY, HIGH);
+  } else {
+    Serial.println("[!] CC1101 not detected or wrong version");
+    Serial.println("[!] Check wiring, power, and connections");
+    digitalWrite(LED_ERROR, HIGH);
+  }
+
+  Serial.println("===========================================");
+  Serial.println("BRUCE Hardware Test Complete!");
+  Serial.println("===========================================");
+  Serial.println();
+  Serial.println("Status:");
+  Serial.println("  - ESP32-S3: ONLINE");
+  Serial.println("  - Display: WORKING");
+  Serial.println("  - LEDs: WORKING");
+  Serial.println("  - I2C: INITIALIZED");
+  Serial.print("  - CC1101: ");
+  Serial.println((version == 0x14 || version == 0x04) ? "DETECTED" : "CHECK WIRING");
+  Serial.println();
+  Serial.println("Next steps:");
+  Serial.println("  1. Verify display shows Bruce branding");
+  Serial.println("  2. Check CC1101 detection status");
+  Serial.println("  3. If all OK: Ready for Phase 2!");
+  Serial.println();
+  Serial.println("🦈 Bruce says: \"Not bad for a breadboard.\"");
+}
+
+void loop() {
+  // Heartbeat pattern
+  digitalWrite(LED_ACTIVITY, HIGH);
+  delay(100);
+  digitalWrite(LED_ACTIVITY, LOW);
+  delay(900);
+
+  // Print heartbeat to serial
+  static unsigned long lastPrint = 0;
+  if(millis() - lastPrint > 5000) {
+    Serial.print(".");
+    lastPrint = millis();
+  }
+}
+```
+
+**File: `platformio.ini`**
+
+```ini
+[env:esp32-s3-devkitc-1]
+platform = espressif32
+board = esp32-s3-devkitc-1
+framework = arduino
+
+; Build flags
+build_flags =
+    -D BOARD_HAS_PSRAM
+    -D ARDUINO_USB_CDC_ON_BOOT=1
+    -D CORE_DEBUG_LEVEL=3
+
+; Monitor settings
+monitor_speed = 115200
+monitor_filters = esp32_exception_decoder
+
+; Upload settings
+upload_speed = 921600
+
+; Library dependencies
+lib_deps =
+    bodmer/TFT_eSPI@^2.5.0
+
+; TFT_eSPI configuration (User_Setup.h alternative)
+build_flags =
+    ${env.build_flags}
+    -D USER_SETUP_LOADED=1
+    -D ILI9341_DRIVER=1
+    -D TFT_WIDTH=240
+    -D TFT_HEIGHT=320
+    -D TFT_MISO=19
+    -D TFT_MOSI=23
+    -D TFT_SCLK=18
+    -D TFT_CS=15
+    -D TFT_DC=2
+    -D TFT_RST=4
+    -D LOAD_GLCD=1
+    -D LOAD_FONT2=1
+    -D LOAD_FONT4=1
+    -D LOAD_FONT6=1
+    -D LOAD_FONT7=1
+    -D LOAD_FONT8=1
+    -D LOAD_GFXFF=1
+    -D SMOOTH_FONT=1
+    -D SPI_FREQUENCY=40000000
+    -D SPI_READ_FREQUENCY=16000000
+```
+
+### Upload and Test Firmware
+
+1. **Build the firmware**
+   ```
+   1. In VS Code, open PlatformIO project
+   2. Click checkmark icon (Build)
+   3. Wait for compilation to complete
+   4. Check for errors in terminal
+   ```
+
+2. **Upload to ESP32-S3**
+   ```
+   1. Connect ESP32-S3 via USB-C
+   2. Click right arrow icon (Upload)
+   3. Wait for upload to complete
+   4. ESP32-S3 should auto-reset and run code
+   ```
+
+3. **Open Serial Monitor**
+   ```
+   1. Click plug icon (Serial Monitor)
+   2. Set baud rate to 115200
+   3. You should see Bruce boot message!
+   ```
+
+4. **Verify hardware test results**
+   ```
+   Expected output:
+   - Bruce ASCII art boot screen
+   - "LEDs working" message
+   - "I2C initialized" message
+   - "Display initialized" message
+   - "CC1101 detected" message (if wired correctly)
+   - Display shows Bruce branding with green text
+   - Blue LED blinks every second (heartbeat)
+   ```
+
+### Troubleshooting Firmware Upload
+
+**Issue: Upload fails**
+```
+Solutions:
+1. Hold BOOT button while clicking Upload
+2. Try different USB cable (must support data)
+3. Try different USB port
+4. Check CP2102N drivers installed
+5. Verify board selection in platformio.ini
+```
+
+**Issue: Serial monitor shows garbled text**
+```
+Solutions:
+1. Check baud rate is 115200
+2. Try different baud rates (921600, 57600)
+3. Verify USB cable supports data
+4. Check for ground loops
+```
+
+**Issue: CC1101 not detected**
+```
+Solutions:
+1. Verify power is 3.3V (use multimeter!)
+2. Check all SPI wiring
+3. Verify GDO0 is connected
+4. Try lower SPI frequency (500kHz)
+5. Check for shorts with multimeter
+```
+
+---
+
+## 🧪 Testing and Validation
+
+### Phase 1 Testing Checklist
+
+1. **Power System Test**
+   ```
+   [ ] 3.3V rails measure 3.3V (±0.1V)
+   [ ] GND rails measure 0V
+   [ ] No voltage drop under load (>3.2V)
+   [ ] Power consumption is 200-400mA
+   [ ] No overheating of any components
+   ```
+
+2. **Display Test**
+   ```
+   [ ] Backlight turns on
+   [ ] Bruce branding appears correctly
+   [ ] Text is sharp and clear
+   [ ] Colors are correct (white, cyan, green, yellow, red)
+   [ ] No dead pixels or lines
+   [ ] Touch screen responds (test with pen)
+   ```
+
+3. **LED Test**
+   ```
+   [ ] Red LED lights on command
+   [ ] Blue/Green LED lights on command
+   [ ] Both LEDs have correct brightness
+   [ ] No flicker or dimness
+   ```
+
+4. **CC1101 Test**
+   ```
+   [ ] VERSION register reads 0x14 or 0x04
+   [ ] Module doesn't overheat
+   [ ] GDO0 pin responds to signals
+   [ ] SPI communication works
+   [ ] Antenna is secure
+   ```
+
+5. **I2C Test**
+   ```
+   [ ] Pull-up resistors installed (4.7kΩ)
+   [ ] SDA line has 3.3V when idle
+   [ ] SCL line has 3.3V when idle
+   [ ] I2C scan doesn't crash system
+   ```
+
+6. **Serial Console Test**
+   ```
+   [ ] Boot messages appear
+   [ ] Bruce ASCII art displays
+   [ ] All hardware checks report OK
+   [ ] Heartbeat dots appear every 5 seconds
+   [ ] No error messages or crashes
+   ```
+
+### Advanced Testing
+
+**CC1101 RF Transmission Test** (requires spectrum analyzer or second CC1101)
+```cpp
+// Add to loop() function for basic TX test
+void testCC1101TX() {
+  // Initialize CC1101 for TX
+  // ... (complex initialization code)
+
+  // Transmit test pattern
+  byte testData[] = {0xAA, 0x55, 0xAA, 0x55};
+
+  // Send data
+  // ... (TX code)
+
+  Serial.println("Transmitted test pattern on 433MHz");
+}
+```
+
+**Display Touch Test**
+```cpp
+// Add to loop() for touch testing
+void testTouch() {
+  uint16_t x, y;
+  if(tft.getTouch(&x, &y)) {
+    Serial.print("Touch at: X=");
+    Serial.print(x);
+    Serial.print(" Y=");
+    Serial.println(y);
+
+    // Draw dot at touch point
+    tft.fillCircle(x, y, 5, TFT_RED);
+  }
+}
+```
+
+---
+
+## 📊 Expected Results
+
+### Successful Phase 1 Build
+
+**Visual Indicators:**
+```
+✓ Display shows Bruce branding
+✓ Text is clear and colorful
+✓ Blue LED blinks every second
+✓ Red LED off (no errors)
+✓ No smoke or burning smell
+✓ No overheating components
+```
+
+**Serial Console Output:**
+```
+    />        BRUCE ONLINE
+  //          Big Brother Mode: ACTIVE
+//
+/__           "When your Dolphin needs a Great White"
+
+===========================================
+BRUCE Powerhouse - Hardware Test v1.0
+===========================================
+[✓] GPIO initialized
+[TEST] LED blink test...
+[✓] LEDs working
+[✓] I2C initialized (SDA=21, SCL=22)
+[TEST] Initializing display...
+[✓] Display initialized and tested
+[TEST] CC1101 SPI test...
+[INFO] CC1101 VERSION register: 0x14
+[✓] CC1101 detected and responding!
+===========================================
+BRUCE Hardware Test Complete!
+===========================================
+
+Status:
+  - ESP32-S3: ONLINE
+  - Display: WORKING
+  - LEDs: WORKING
+  - I2C: INITIALIZED
+  - CC1101: DETECTED
+
+Next steps:
+  1. Verify display shows Bruce branding
+  2. Check CC1101 detection status
+  3. If all OK: Ready for Phase 2!
+
+🦈 Bruce says: "Not bad for a breadboard."
+.....
+```
+
+**Power Consumption:**
+```
+Idle: ~200-250mA @ 5V USB
+Active (WiFi scanning): ~350-450mA
+Peak (RF TX): ~500-600mA
+```
+
+---
+
+## 🚨 Troubleshooting Common Issues
+
+### Issue: Nothing works, no power
+
+**Symptoms:**
+- No LEDs light up
+- Display backlight doesn't turn on
+- Serial console shows nothing
+
+**Solutions:**
+1. Check USB cable (must support data, not charge-only)
+2. Try different USB port on laptop
+3. Verify ESP32-S3 is seated correctly in breadboard
+4. Check for shorts between [+] and [-] rails
+5. Measure voltage at 3.3V rail (should be 3.3V)
+
+### Issue: Display backlight on but no text
+
+**Symptoms:**
+- Display glows white/blue
+- No Bruce branding appears
+- Serial console works fine
+
+**Solutions:**
+1. Check all SPI wiring (MOSI, MISO, SCK, CS, DC, RESET)
+2. Verify pin numbers in platformio.ini match your wiring
+3. Try different TFT_eSPI settings
+4. Ensure display is ILI9341 driver (not other type)
+5. Check DC pin connection (common issue)
+
+### Issue: CC1101 not detected (VERSION reads 0x00 or 0xFF)
+
+**Symptoms:**
+- Serial console shows "CC1101 not detected"
+- VERSION register reads 0x00 or 0xFF
+- Red LED turns on
+
+**Solutions:**
+1. ⚠️ VERIFY 3.3V power with multimeter (5V destroys CC1101!)
+2. Check all SPI wiring (MOSI, MISO, SCK, CS)
+3. Verify GDO0 is connected (required!)
+4. Add 10µF capacitor across VCC and GND
+5. Try lower SPI frequency (500kHz)
+6. Check for bent pins on CC1101
+7. Verify CC1101 is not damaged
+
+### Issue: LEDs don't light or very dim
+
+**Symptoms:**
+- LEDs are dim or don't light at all
+- Other components work fine
+
+**Solutions:**
+1. Check LED polarity (long leg = anode = positive)
+2. Verify resistor value is 330Ω (not 330kΩ!)
+3. Test LED with multimeter diode mode
+4. Check GPIO pin connections
+5. Verify GPIO pins aren't already in use
+
+### Issue: I2C devices not working (future phases)
+
+**Symptoms:**
+- I2C scan finds no devices
+- I2C communication fails
+
+**Solutions:**
+1. ⚠️ VERIFY 4.7kΩ pull-up resistors are installed!
+2. Check SDA (GPIO21) and SCL (GPIO22) connections
+3. Measure voltage on SDA and SCL (should be 3.3V when idle)
+4. Verify pull-ups are to 3.3V, not GND
+5. Check for I2C address conflicts
+
+### Issue: ESP32-S3 keeps resetting or crashing
+
+**Symptoms:**
+- Boot loop (restarts constantly)
+- Random crashes
+- Watchdog resets
+
+**Solutions:**
+1. Check power supply (may be insufficient current)
+2. Use powered USB hub (laptop USB may be weak)
+3. Add 10µF capacitor across 3.3V and GND rails
+4. Disable WiFi in code (uses a lot of power)
+5. Check for shorts in wiring
+6. Reduce SPI clock speeds
+
+### Issue: Serial console garbled or weird characters
+
+**Symptoms:**
+- Random characters instead of text
+- Some text readable, some garbled
+- Chinese/Japanese characters
+
+**Solutions:**
+1. Check baud rate is 115200
+2. Try different baud rates (921600, 57600, 9600)
+3. Verify USB cable supports data
+4. Try different USB cable
+5. Check for ground loops
+6. Add decoupling capacitor near USB connector
+
+---
+
+## 📈 Next Steps After Phase 1
+
+### Phase 2: Add nRF24L01+ 2.4GHz Radio
+
+**New components needed:**
+- nRF24L01+ PA/LNA module (you have 2!)
+- 10µF capacitor for power decoupling
+
+**Wiring:**
+```
+nRF24L01+ to ESP32-S3 (SPI2 bus):
+- VCC → 3.3V (with 10µF cap!)
+- GND → GND
+- MOSI → GPIO11
+- MISO → GPIO10
+- SCK → GPIO9
+- CS → GPIO8
+- CE → GPIO7
+```
+
+**Firmware additions:**
+- Add RF24 library
+- Implement 2.4GHz scanning
+- Display signal strength on screen
+
+### Phase 3: Add Raspberry Pi Pico 2 W (GPIO Expansion)
+
+**New components:**
+- Raspberry Pi Pico 2 W (you have it!)
+- 2× 4.7kΩ resistors (I2C pull-ups already installed)
+
+**Wiring:**
+```
+Pico 2 W to ESP32-S3 (I2C bus):
+- SDA → GPIO21 (shared I2C bus)
+- SCL → GPIO22 (shared I2C bus)
+- GND → GND
+- VBUS → 3.3V (or USB power)
+```
+
+**Firmware:**
+- Pico 2 W firmware (I2C slave mode)
+- ESP32-S3 firmware (I2C master, query Pico for GPIO states)
+- Sensor integration (BME680, MPU9250, etc.)
+
+### Phase 4: Add ESP32-C6 WiFi 6 Co-Processor
+
+**New components:**
+- Waveshare ESP32-C6 (you have it!)
+- Already has I2C pull-ups from Phase 1
+
+**Wiring:**
+```
+ESP32-C6 to ESP32-S3 (I2C bus):
+- SDA → GPIO21 (shared I2C bus)
+- SCL → GPIO22 (shared I2C bus)
+- GND → GND
+- 3V3 → 3.3V
+```
+
+**Firmware:**
+- ESP32-C6 firmware (I2C slave, WiFi 6 operations)
+- ESP32-S3 firmware (I2C master, command ESP32-C6 for WiFi tasks)
+- WiFi 6 scanning and analysis
+
+### Phase 5: Connect to Flipper Zero
+
+**New components:**
+- Flipper Zero (you have it!)
+- 3× female-to-female jumper wires
+
+**Wiring:**
+```
+Flipper Zero to ESP32-S3 (UART):
+- Flipper Pin 2 (RX) → ESP32-S3 GPIO17 (TX)
+- Flipper Pin 3 (TX) → ESP32-S3 GPIO16 (RX)
+- Flipper Pin 7 (GND) → ESP32-S3 GND
+```
+
+**Firmware:**
+- Flipper Zero app (send/receive UART commands)
+- ESP32-S3 firmware (process Flipper commands)
+- Implement Bruce personality responses
+
+### Phase 6: Permanent PCB Build
+
+**New components:**
+- VooGenzek PCB boards (you have them!)
+- Soldering supplies
+- Nylon standoffs (included in VooGenzek kit)
+
+**Process:**
+1. Design PCB layout on paper
+2. Transfer breadboard design to PCB
+3. Solder components permanently
+4. Create multi-board stacked architecture
+5. Mount with standoffs for clean build
+6. Test each board individually before stacking
+7. Final assembly and testing
+
+---
+
+## 📝 Build Log Template
+
+Keep track of your progress:
+
+```
+===========================================
+BRUCE POWERHOUSE BUILD LOG
+===========================================
+
+Date Started: _______________
+
+Phase 1: Basic Hardware
+[ ] Components verified (Date: _____)
+[ ] Power rails wired (Date: _____)
+[ ] I2C pull-ups installed (Date: _____)
+[ ] LEDs installed (Date: _____)
+[ ] Display wired (Date: _____)
+[ ] CC1101 wired (Date: _____)
+[ ] Antenna built (Date: _____)
+[ ] First power-on (Date: _____)
+[ ] Firmware uploaded (Date: _____)
+[ ] All tests passing (Date: _____)
+
+Issues Encountered:
+1. ______________________________
+   Solution: _____________________
+2. ______________________________
+   Solution: _____________________
+3. ______________________________
+   Solution: _____________________
+
+Photos Taken:
+[ ] Overall layout
+[ ] Display close-up
+[ ] CC1101 close-up
+[ ] Working display with Bruce branding
+[ ] Serial console output
+
+Next Phase Start Date: _______________
+
+Notes:
+_______________________________________
+_______________________________________
+_______________________________________
+
+===========================================
+```
+
+---
+
+## 🦈 Bruce Says...
+
+**On breadboard prototypes:**
+*"Breadboards are temporary. But even on a breadboard, I'm still the apex predator. This is just Bruce warming up. Wait till you see me on a permanent PCB build."*
+
+**On taking your time:**
+*"Measure twice, solder once. Or in this case, measure twice, wire once. Rushing is for minnows. Sharks are methodical."*
+
+**On troubleshooting:**
+*"Something not working? Good. That means you're learning. Troubleshooting is what separates professionals from amateurs. Figure it out, fix it, move on. That's the Bruce way."*
+
+**On Phase 1 completion:**
+*"Phase 1 complete? Not bad. Display showing my name, RF module responding, LEDs blinking... You're starting to get it. But we're just getting started, kid. Phase 2 is where things get interesting."*
+
+**On Flipper Zero integration:**
+*"Flipper's a clever little dolphin, but sometimes you need a shark. That's where I come in. More power, more range, more protocols. We're going to make a great team."*
+
+---
+
+## 📚 Additional Resources
+
+### Documentation
+- [ESP32-S3 Datasheet](https://www.espressif.com/sites/default/files/documentation/esp32-s3_datasheet_en.pdf)
+- [ILI9341 Display Driver](https://github.com/Bodmer/TFT_eSPI)
+- [CC1101 Library](https://github.com/LSatan/SmartRC-CC1101-Driver-Lib)
+- [RadioLib Universal RF](https://github.com/jgromes/RadioLib)
+
+### Community
+- [ESP32 Forum](https://esp32.com/)
+- [PlatformIO Community](https://community.platformio.org/)
+- [Flipper Zero Discord](https://flipperzero.one/discord)
+
+### Tools
+- [Fritzing (Circuit Diagrams)](https://fritzing.org/)
+- [EasyEDA (PCB Design)](https://easyeda.com/)
+- [PlatformIO Documentation](https://docs.platformio.org/)
+
+---
+
+**Last Updated**: 2025-12-05
+**Build Status**: Phase 1 - Ready to Build
+**GitHub**: https://github.com/dazeb/bruce
+
+**🦈 "When your Dolphin needs a Great White."**
+
+---
+
+*This guide is part of the BRUCE project. For the complete project overview, see [00_START_HERE.md](../00_START_HERE.md)*

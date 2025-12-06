@@ -1,0 +1,365 @@
+
+# Multi-Board Bruce Architecture
+
+## Overview
+
+Bruce can start as a single CYD board and expand to 2-3 boards when you need more processing power or GPIO pins. This guide shows how to power and connect multiple boards using your ELEGOO breadboard.
+
+## Power Distribution via Breadboard
+
+Your 830-point breadboard has two power rails on each side. Here's how to use them:
+
+```
+Breadboard Power Setup:
++5V rail  ──────────────────────────  All boards' 5V or VIN pins
+GND rail  ──────────────────────────  Common ground (critical!)
+
+Power source: USB hub (5V 3A) or wall adapter (5V 3A)
+- Connect +5V to breadboard's + rail
+- Connect GND to breadboard's - rail
+- All boards tap into these rails
+```
+
+**Critical**: All boards MUST share common ground. This is the most common multi-board mistake.
+
+## Phase 1: Single Board (Start Here)
+
+**Hardware**: CYD only
+
+**What it does**:
+
+- Display control (2.8" touchscreen)
+- WiFi scanning and deauth
+- Basic Sub-GHz (if you add one CC1101 to CN1)
+- Touch interface
+
+**Power**: 115mA @ 5V (CYD alone)
+
+**Wiring**:
+
+```
+Power:
+CYD VIN ──→ Breadboard +5V rail
+CYD GND ──→ Breadboard GND rail
+
+Optional CC1101 on CN1 (I2C-style pins):
+CN1 3.3V ──→ CC1101 VCC
+CN1 GND  ──→ CC1101 GND
+CN1 GPIO22 ──→ CC1101 CSN (SPI)
+CN1 GPIO27 ──→ CC1101 GDO0
+```
+
+**First firmware goal**: Display "BRUCE ONLINE" and scan WiFi
+
+**Files to start**:
+
+- [firmware/esp32_primary/src/main.cpp](firmware/esp32_primary/src/main.cpp)
+- [firmware/esp32_primary/platformio.ini](firmware/esp32_primary/platformio.ini)
+
+## Phase 2: Dual Board (Add When You Need WiFi 6)
+
+**Hardware**: CYD + ESP32-C6
+
+**What it adds**:
+
+- WiFi 6 (802.11ax) scanning
+- BLE 5.3 long-range
+- Thread/Zigbee protocols
+- Offload intensive tasks from CYD
+
+**Power**: 115mA (CYD) + 80mA (ESP32-C6) = 195mA total
+
+**Communication**: I2C (CYD = master @ SDA/SCL, C6 = slave @ 0x20)
+
+**Wiring**:
+
+```
+Power:
+CYD VIN    ──→ Breadboard +5V rail
+ESP32-C6 5V ──→ Breadboard +5V rail
+Both GND   ──→ Breadboard GND rail (shared ground!)
+
+I2C Bus:
+CYD GPIO22 (CN1) ──→ 4.7kΩ pull-up ──→ 3.3V
+                 └──→ ESP32-C6 SDA (GPIO6)
+
+CYD GPIO27 (CN1) ──→ 4.7kΩ pull-up ──→ 3.3V
+                 └──→ ESP32-C6 SCL (GPIO7)
+
+Both 3.3V pins ──→ Two 4.7kΩ resistors ──→ SDA and SCL
+```
+
+**Communication Protocol**:
+
+```c
+// CYD sends command to C6
+i2c_write_to_slave(0x20, CMD_SCAN_WIFI6, NULL, 0);
+
+// CYD reads results from C6
+uint8_t results[256];
+i2c_read_from_slave(0x20, results, sizeof(results));
+```
+
+**C6 Commands**:
+
+- `0x01` - Scan WiFi 6 networks
+- `0x02` - BLE 5.3 scan
+- `0x03` - Start Thread network
+- `0x04` - Get results
+
+## Phase 3: Triple Board (Add When You Need More GPIO)
+
+**Hardware**: CYD + ESP32-C6 + Raspberry Pi Pico
+
+**What Pico adds**:
+
+- 26 GPIO pins (vs CYD's 3 available pins)
+- 3× 12-bit ADC channels
+- 16× PWM channels
+- Second I2C slave (0x21)
+
+**Power**: 195mA + 30mA (Pico) = 225mA total
+
+**Use cases**:
+
+- Multiple sensors (temperature, humidity, pressure, IMU)
+- PWM control (servo motors, LEDs)
+- Analog readings (light sensors, potentiometers)
+- GPIO expansion for more RF modules
+
+**Wiring**:
+
+```
+Power:
+All three boards VIN/5V ──→ Breadboard +5V rail
+All three boards GND   ──→ Breadboard GND rail
+
+I2C Bus (now has 3 devices):
+CYD GPIO22 ──→ 4.7kΩ ──→ 3.3V (pull-up already there)
+         └──→ ESP32-C6 SDA (GPIO6)
+         └──→ Pi Pico SDA (GPIO4)
+
+CYD GPIO27 ──→ 4.7kΩ ──→ 3.3V (pull-up already there)
+         └──→ ESP32-C6 SCL (GPIO7)
+         └──→ Pi Pico SCL (GPIO5)
+```
+
+**I2C Addresses**:
+
+- CYD: Master (no address)
+- ESP32-C6: 0x20 (WiFi 6 co-processor)
+- Pi Pico: 0x21 (GPIO expansion)
+
+**Pico Commands**:
+
+- `0x10` - Read GPIO pin state
+- `0x11` - Write GPIO pin state
+- `0x12` - Read ADC channel
+- `0x13` - Set PWM duty cycle
+- `0x14` - Read all sensors (batch)
+
+## Breadboard Layout Example
+
+```
+830-point breadboard layout:
+
+Top half:
+┌─────────────────────────────────────────┐
+│ +5V rail ═══════════════════════════    │
+│ GND rail ───────────────────────────    │
+│                                          │
+│  [ESP32-C6]    [Pi Pico]    [Sensors]   │
+│     ││            ││            ││       │
+│  Power+I2C     Power+I2C    Connect      │
+│                                to Pico   │
+└─────────────────────────────────────────┘
+
+Bottom half:
+┌─────────────────────────────────────────┐
+│                                          │
+│  [CC1101]  [nRF24]  [4.7kΩ resistors]   │
+│     ││        ││                         │
+│  Connect   Connect    For I2C pull-ups  │
+│  to CYD    to Pico                       │
+│                                          │
+│ +5V rail ═══════════════════════════    │
+│ GND rail ───────────────────────────    │
+└─────────────────────────────────────────┘
+
+Note: CYD sits off-breadboard (too wide), connects via jumpers
+```
+
+## Power Budget
+
+| Board                | Current @ 5V | Notes                           |
+| -------------------- | ------------ | ------------------------------- |
+| CYD                  | 115mA        | Display + ESP32 + touch         |
+| ESP32-C6             | 80mA         | WiFi 6 active scanning          |
+| Pi Pico              | 30mA         | Base + sensors                  |
+| CC1101               | 30mA         | Sub-GHz TX mode                 |
+| nRF24 PA/LNA         | 115mA        | 2.4GHz TX mode                  |
+| **Total worst-case** | **370mA**    | All transmitting simultaneously |
+| **Typical**          | **250mA**    | Mixed RX/TX operation           |
+
+**Recommended power**: 5V 3A USB hub or wall adapter (provides 8× safety margin)
+
+## Communication Flow
+
+```
+User touches CYD screen
+        ↓
+CYD interprets touch
+        ↓
+    ┌───┴────┐
+    ↓        ↓
+Send WiFi6   Send sensor
+command      read command
+to C6        to Pico
+    ↓            ↓
+C6 scans     Pico reads
+WiFi 6       temperature
+networks     humidity, etc.
+    ↓            ↓
+    └────────────┘
+         ↓
+CYD displays results
+on touchscreen
+```
+
+## Firmware Architecture
+
+### CYD (Master Controller)
+
+```c
+// firmware/esp32_primary/src/main.cpp
+
+void setup() {
+    // Initialize I2C master
+    Wire.begin(22, 27); // SDA=22, SCL=27 (CN1 connector)
+
+    // Initialize display
+    tft.init();
+    tft.setRotation(1);
+
+    // Test I2C bus
+    scan_i2c_devices();
+}
+
+void loop() {
+    // Handle touch input
+    if (touch.pressed()) {
+        handleTouchEvent();
+    }
+
+    // Query co-processors
+    if (wifi6_scan_requested) {
+        queryESP32C6();
+    }
+
+    if (sensor_read_requested) {
+        queryPiPico();
+    }
+
+    // Update display
+    updateDisplay();
+}
+```
+
+### ESP32-C6 (WiFi 6 Co-processor)
+
+```c
+// firmware/esp32_secondary/src/main.cpp
+
+void setup() {
+    // Initialize I2C slave at 0x20
+    Wire.begin(0x20, 6, 7); // Address, SDA, SCL
+    Wire.onReceive(handleCommand);
+    Wire.onRequest(sendResults);
+}
+
+void handleCommand(int bytes) {
+    uint8_t cmd = Wire.read();
+    switch(cmd) {
+        case 0x01: scanWiFi6(); break;
+        case 0x02: scanBLE53(); break;
+    }
+}
+```
+
+### Pi Pico (GPIO Expansion)
+
+```python
+# firmware/rp2040_gpio/main.py
+
+from machine import I2C, Pin
+import struct
+
+i2c = I2C(0, scl=Pin(5), sda=Pin(4))
+i2c_slave_address = 0x21
+
+def handle_command(cmd):
+    if cmd == 0x10:  # Read GPIO
+        return read_gpio()
+    elif cmd == 0x12:  # Read ADC
+        return read_adc()
+```
+
+## When to Expand
+
+**Start Phase 1 if**:
+
+- You just want to see Bruce work
+- You only need WiFi 4 (ESP32's built-in WiFi)
+- You have limited GPIO needs (3 pins is enough)
+
+**Add Phase 2 (ESP32-C6) if**:
+
+- You need WiFi 6 (802.11ax) scanning
+- You need BLE 5.3 long-range
+- You need Thread or Zigbee
+- CYD's ESP32 is running out of CPU
+
+**Add Phase 3 (Pi Pico) if**:
+
+- You need more than 3 GPIO pins
+- You need multiple analog inputs
+- You want to add lots of sensors
+- You need PWM control
+- You want to add more RF modules (more CS pins needed)
+
+## Shopping List by Phase
+
+### Phase 1 (Single Board - $15)
+
+- ✅ ESP32-2432S028R (CYD) - $12-15
+- ✅ ELEGOO breadboard (you have)
+- ✅ USB 5V 2A power (you probably have)
+
+### Phase 2 (Dual Board - +$5)
+
+- ✅ ESP32-C6-DevKitC-1 - $5-8
+- ✅ 4.7kΩ resistors ×2 for I2C (NOT in ELEGOO kit)
+- ✅ Jumper wires (you have)
+
+### Phase 3 (Triple Board - +$4)
+
+- ✅ Raspberry Pi Pico - $4
+- ✅ No additional parts needed (reuse I2C pull-ups)
+
+**Total for all 3 phases**: ~$24
+
+## Next Steps
+
+1. **Start with Phase 1**: Get CYD displaying and scanning WiFi
+2. **Test I2C**: Run I2C scanner on CYD to verify CN1 pins work
+3. **Add C6**: Only when you need WiFi 6 or BLE 5.3
+4. **Add Pico**: Only when you run out of GPIO pins
+
+## Files to Create
+
+- [ ] `firmware/esp32_primary/src/main.cpp` - CYD master controller
+- [ ] `firmware/esp32_secondary/src/main.cpp` - ESP32-C6 WiFi 6 co-processor
+- [ ] `firmware/rp2040_gpio/main.py` - Pi Pico GPIO expansion
+- [ ] `firmware/common/i2c_protocol.h` - Shared I2C command definitions
+
+Do you want me to start with Phase 1 firmware for the CYD?

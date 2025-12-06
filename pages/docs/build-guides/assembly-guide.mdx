@@ -1,0 +1,897 @@
+# Step-by-Step Assembly Guide
+
+Detailed assembly instructions for building the breadboard prototype.
+
+---
+
+## Before You Start
+
+### ✅ Prerequisites Checklist
+- [ ] All parts from shopping list received
+- [ ] ESP32-S3 DevKit unpacked and inspected
+- [ ] Breadboards cleaned and ready
+- [ ] USB cable tested (data transfer capable)
+- [ ] Computer with PlatformIO or Arduino IDE installed
+- [ ] Flipper Zero charged and ready
+
+### 🛠️ Tools Ready
+- [ ] Computer with USB port
+- [ ] Soldering iron (if modules need headers)
+- [ ] Wire strippers (optional)
+- [ ] Multimeter (highly recommended)
+- [ ] Good lighting
+- [ ] Clear workspace
+
+### ⏱️ Time Estimate
+- **Phase 1**: 1-2 hours (including firmware setup)
+- **Phase 2**: 1-2 hours
+- **Phase 3**: 1-2 hours
+- **Total**: 3-6 hours for complete build
+
+---
+
+## Phase 1: Core System Assembly
+
+### Goal
+Get ESP32-S3 communicating with Flipper Zero and verify basic functionality.
+
+---
+
+### Step 1.1: Prepare the ESP32-S3 DevKit (15 min)
+
+1. **Inspect the board**
+   - Check for physical damage
+   - Verify all pins are straight
+   - Look for "ESP32-S3" marking on chip
+
+2. **Verify PSRAM** (critical!)
+   ```
+   Board marking should show:
+   ESP32-S3-WROOM-1-N16R8 or
+   ESP32-S3-DevKitC-1-N8R8
+
+   N16R8 = 16MB Flash + 8MB PSRAM ✓
+   N8R8  = 8MB Flash + 8MB PSRAM ✓
+   N8    = 8MB Flash, NO PSRAM ✗ (wrong board!)
+   ```
+
+3. **Test USB connection**
+   - Plug into computer via USB-C
+   - LED should light up
+   - Computer should recognize device
+   - Check Device Manager (Windows) or `ls /dev/tty*` (Linux/Mac)
+
+**Expected Result**: ESP32-S3 shows up as COM port or /dev/ttyUSB0
+
+---
+
+### Step 1.2: Set Up Development Environment (20 min)
+
+**Option A: PlatformIO (Recommended)**
+
+1. Install VS Code
+2. Install PlatformIO extension
+3. Open project: `firmware/esp32_primary`
+4. Let PlatformIO download dependencies
+
+**Option B: Arduino IDE**
+
+1. Install Arduino IDE 2.0+
+2. Add ESP32 board support:
+   - File → Preferences → Additional Board URLs
+   - Add: `https://espressif.github.io/arduino-esp32/package_esp32_index.json`
+3. Install ESP32 boards via Board Manager
+4. Select: Tools → Board → ESP32-S3 Dev Module
+
+---
+
+### Step 1.3: Flash Test Firmware (15 min)
+
+1. **Create test sketch** (or use provided):
+   ```cpp
+   void setup() {
+     Serial.begin(115200);
+     pinMode(2, OUTPUT);
+     Serial.println("ESP32-S3 Test!");
+   }
+
+   void loop() {
+     digitalWrite(2, HIGH);
+     Serial.println("LED ON");
+     delay(1000);
+     digitalWrite(2, LOW);
+     Serial.println("LED OFF");
+     delay(1000);
+   }
+   ```
+
+2. **Compile and upload**:
+   - PlatformIO: Click Upload button
+   - Arduino: Sketch → Upload
+
+3. **Troubleshooting upload**:
+   - If fails: Hold BOOT button, press RESET
+   - Release RESET, then release BOOT
+   - Try upload again
+
+4. **Verify**:
+   - Open Serial Monitor (115200 baud)
+   - Should see "ESP32-S3 Test!" and blinking messages
+
+**Expected Result**: Built-in LED blinking, serial output visible
+
+---
+
+### Step 1.4: Assemble Breadboard - Power Rails (10 min)
+
+1. **Place breadboard** on work surface
+
+2. **Connect power rails** (if not pre-connected):
+   ```
+   Top rail:    [+] red    → 3.3V power
+                [-] blue   → GND
+
+   Bottom rail: [+] red    → 3.3V power
+                [-] blue   → GND
+
+   Bridge top and bottom rails with jumper wires
+   ```
+
+3. **Add power from ESP32-S3**:
+   ```
+   ESP32-S3 3.3V pin → Breadboard [+] rail
+   ESP32-S3 GND pin  → Breadboard [-] rail
+   ```
+
+4. **Test with multimeter**:
+   - Set to DC voltage mode
+   - Red probe → [+] rail
+   - Black probe → [-] rail
+   - Should read ~3.3V
+
+**Expected Result**: 3.3V on power rails, stable reading
+
+---
+
+### Step 1.5: Add LEDs and Decoupling Caps (10 min)
+
+1. **Insert Status LED** (Row 40):
+   ```
+   GPIO2 → [330Ω resistor] → [LED Anode (+)] → [LED Cathode (-)] → GND
+
+   Orientation:
+   - LED long leg (anode +) toward resistor
+   - LED short leg (cathode -) toward GND
+   ```
+
+2. **Insert Activity LED** (Row 42):
+   ```
+   GPIO4 → [330Ω resistor] → [LED Anode (+)] → [LED Cathode (-)] → GND
+   ```
+
+3. **Add decoupling capacitors** (near ESP32):
+   ```
+   Row 44: [100nF ceramic] between 3.3V and GND
+   Row 45: [10µF electrolytic] between 3.3V and GND
+
+   Note: Electrolytic has polarity!
+   - Long leg (+) to 3.3V
+   - Short leg (-) to GND
+   ```
+
+4. **Double-check all connections**:
+   - No shorts between power and ground
+   - LED polarity correct
+   - Capacitor polarity correct (electrolytic)
+
+**Photo of completed breadboard** (schematic reference):
+```
+     [ESP32-S3 DevKit]
+     ┌─────────────────┐
+     │  3.3V ────── [+]│────[10µF]────[100nF]────[-]
+     │  GND  ────── [-]│
+     │  GPIO2 ──────────┼─[330Ω]─[LED]─[-]
+     │  GPIO4 ──────────┼─[330Ω]─[LED]─[-]
+     │                  │
+     └─────────────────┘
+```
+
+**Expected Result**: Clean breadboard layout, no loose connections
+
+---
+
+### Step 1.6: Test LED Control (5 min)
+
+1. **Upload LED blink firmware** (from Step 1.3)
+
+2. **Verify both LEDs blink**:
+   - GPIO2 LED: Should blink
+   - GPIO4 LED: Add test code or connect to GPIO4
+
+3. **Check voltage with multimeter**:
+   - Measure across LED when ON: ~2V
+   - Measure across LED when OFF: ~3.3V
+
+**Expected Result**: LEDs blinking in sync with serial output
+
+---
+
+### Step 1.7: Wire to Flipper Zero (15 min)
+
+1. **Identify Flipper GPIO pins**:
+   ```
+   Flipper GPIO Header (top row, left to right):
+   Pin 1: 3.3V    Pin 2: RX (PC3)
+   Pin 3: TX (PC1)  Pin 4: GPIO (PC0)
+   Pin 5: GPIO (PB3) Pin 6: GPIO (PB2)
+   Pin 7: GND      Pin 8: GND
+   ```
+
+2. **Connect UART wires** (use male-to-female jumpers):
+   ```
+   ESP32-S3          Flipper Zero
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   GPIO17 (TX) ──→  Pin 2 (RX)
+   GPIO16 (RX) ←──  Pin 3 (TX)
+   GND         ──→  Pin 7 or 8 (GND)
+   ```
+
+   **CRITICAL**: TX goes to RX, RX goes to TX (crossover!)
+
+3. **Optional power connection**:
+   ```
+   Flipper Pin 1 (3.3V) → ESP32-S3 3.3V pin
+   ```
+   ⚠️ **Warning**: Only if NOT powering ESP32 via USB!
+
+4. **Secure connections**:
+   - Ensure wires fully inserted
+   - No loose connections
+   - Label wires with tape if needed
+
+**Wiring Photo Reference**:
+```
+Flipper Zero          ESP32-S3
+┌─────────┐          ┌─────────┐
+│ 1: 3.3V │          │   3.3V  │
+│ 2: RX   │◄─────────│GPIO17 TX│
+│ 3: TX   │──────────│GPIO16 RX│
+│ 7: GND  │──────────│   GND   │
+└─────────┘          └─────────┘
+```
+
+**Expected Result**: 3 wires connecting Flipper to ESP32-S3
+
+---
+
+### Step 1.8: Flash Primary Firmware (10 min)
+
+1. **Navigate to firmware**:
+   ```bash
+   cd firmware/esp32_primary
+   ```
+
+2. **Edit platformio.ini** (verify port):
+   ```ini
+   [env:esp32dev]
+   upload_port = COM3  ; Change to your port!
+   ```
+
+3. **Build and upload**:
+   ```bash
+   pio run -t upload
+   ```
+
+4. **Monitor output**:
+   ```bash
+   pio device monitor -b 115200
+   ```
+
+5. **Verify boot messages**:
+   ```
+   Expected output:
+   ─────────────────────
+   Primary ESP32 initialized
+   Flipper Zero Dev Board v0.1
+   I2C bus initialized
+   UART ready on GPIO16/17
+   Waiting for commands...
+   ```
+
+**Expected Result**: Firmware running, waiting for Flipper commands
+
+---
+
+### Step 1.9: Test Flipper Communication (10 min)
+
+1. **On Flipper Zero**:
+   - GPIO → UART Terminal
+   - Set baud rate: 115200
+   - Connect
+
+2. **Expected on Flipper screen**:
+   ```
+   UART Terminal
+   115200 8N1
+   ──────────────
+   Primary ESP32 initialized
+   Flipper Zero Dev Board v0.1
+   ```
+
+3. **Send test command** from Flipper:
+   - Type: `ping` or send hex: `AA 01 00 00`
+
+4. **Expected response**:
+   ```
+   PONG received
+   or
+   AA FE 00 00 (hex)
+   ```
+
+5. **Verify on ESP32 serial**:
+   ```
+   Received: ping
+   Sent: pong
+   ```
+
+**Expected Result**: Two-way UART communication working!
+
+---
+
+### ✅ Phase 1 Completion Checklist
+
+- [ ] ESP32-S3 powered on via USB
+- [ ] Status LED blinking
+- [ ] Serial monitor showing boot messages
+- [ ] Flipper connected via 3 wires (TX/RX/GND)
+- [ ] Ping/pong test successful
+- [ ] No smoke, no shorts, everything stable
+
+**🎉 Congratulations!** Core system working. Time for Phase 2!
+
+---
+
+## Phase 2: Sub-GHz RF Module (CC1101)
+
+### Goal
+Add 433MHz transceiver for Sub-GHz communication.
+
+---
+
+### Step 2.1: Prepare CC1101 Module (10 min)
+
+1. **Inspect module**:
+   - Check for "CC1101" marking
+   - Verify 8 pins present
+   - Check frequency marking (433MHz, 315MHz, etc.)
+
+2. **Solder header pins** (if not pre-soldered):
+   - Insert 8-pin header into breadboard
+   - Place CC1101 on header
+   - Solder from top
+   - Ensure pins are straight
+
+3. **Identify pins**:
+   ```
+   CC1101 Module (viewed from top):
+   ┌─────────────┐
+   │ VCC   GDO0  │
+   │ GND   CSN   │
+   │ MOSI  SCK   │
+   │ MISO  GDO2  │
+   └─────────────┘
+   ```
+
+**Expected Result**: CC1101 with soldered headers, pins identified
+
+---
+
+### Step 2.2: Wire CC1101 to ESP32-S3 (15 min)
+
+1. **Insert CC1101** into breadboard (Row 60-67)
+
+2. **Connect power**:
+   ```
+   CC1101 VCC → Breadboard [+] 3.3V rail
+   CC1101 GND → Breadboard [-] GND rail
+   ```
+
+3. **Connect SPI1 bus**:
+   ```
+   CC1101 Pin    ESP32-S3 Pin
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━
+   SCK     →     GPIO12
+   MISO    →     GPIO13
+   MOSI    →     GPIO11
+   CSN     →     GPIO5
+   GDO0    →     GPIO6
+   GDO2    →     GPIO7
+   ```
+
+4. **Add decoupling capacitor**:
+   ```
+   [100nF ceramic] between VCC and GND (next to CC1101)
+   ```
+
+5. **Connect antenna**:
+   - Screw in spring antenna to ANT connector
+   - Or solder 17.3cm wire to ANT pad for 433MHz
+
+**Wiring Diagram**:
+```
+ESP32-S3                    CC1101
+GPIO12 (SCK)  ────────────► SCK
+GPIO13 (MISO) ◄──────────── MISO
+GPIO11 (MOSI) ────────────► MOSI
+GPIO5  (CS)   ────────────► CSN
+GPIO6         ◄──────────── GDO0
+GPIO7         ◄──────────── GDO2
+3.3V          ────────────► VCC
+GND           ────────────► GND
+```
+
+**Expected Result**: CC1101 fully wired, antenna attached
+
+---
+
+### Step 2.3: Update Firmware for CC1101 (10 min)
+
+1. **Add CC1101 library** to `platformio.ini`:
+   ```ini
+   lib_deps =
+       Wire
+       SPI
+       SmartRC-CC1101-Driver-Lib
+   ```
+
+2. **Add initialization code** to `main.cpp`:
+   ```cpp
+   #include <ELECHOUSE_CC1101_SRC_DRV.h>
+
+   #define CC1101_CS_PIN 5
+   #define CC1101_GDO0 6
+
+   void setup_cc1101() {
+       ELECHOUSE_cc1101.Init();
+       ELECHOUSE_cc1101.setCCMode(1);       // Set config
+       ELECHOUSE_cc1101.setModulation(0);   // 2-FSK
+       ELECHOUSE_cc1101.setMHZ(433.92);     // Frequency
+       ELECHOUSE_cc1101.setDeviation(47.60);
+       ELECHOUSE_cc1101.setChannel(0);
+       ELECHOUSE_cc1101.setChsp(199.95);
+       ELECHOUSE_cc1101.setRxBW(812.50);
+       ELECHOUSE_cc1101.setDRate(99.97);
+       ELECHOUSE_cc1101.setPA(10);          // Power
+       ELECHOUSE_cc1101.setSyncMode(2);
+       ELECHOUSE_cc1101.setCrc(1);
+       ELECHOUSE_cc1101.setClb(1, 13, 15, 16, 17, 18, 19);
+
+       Serial.println("CC1101 initialized!");
+   }
+   ```
+
+3. **Upload updated firmware**
+
+**Expected Result**: Firmware compiles and uploads successfully
+
+---
+
+### Step 2.4: Test CC1101 Communication (15 min)
+
+1. **Check initialization** in serial monitor:
+   ```
+   Expected:
+   ─────────────────
+   CC1101 initialized!
+   Frequency: 433.92 MHz
+   ```
+
+2. **Read chip version**:
+   ```cpp
+   byte version = ELECHOUSE_cc1101.SpiReadStatus(CC1101_VERSION);
+   Serial.printf("CC1101 version: 0x%02X\n", version);
+   ```
+
+   **Expected**: `0x14` (chip version)
+
+3. **Transmit test**:
+   ```cpp
+   byte txData[] = {0x01, 0x02, 0x03, 0x04, 0x05};
+   ELECHOUSE_cc1101.SendData(txData, 5);
+   Serial.println("Data transmitted!");
+   ```
+
+4. **Verify with RTL-SDR** (if available):
+   - Tune to 433.92 MHz
+   - Should see signal spike when transmitting
+
+5. **Receive test** (use second CC1101 or wait for reply):
+   ```cpp
+   if (ELECHOUSE_cc1101.CheckRxFifo(100)) {
+       byte buffer[64];
+       int len = ELECHOUSE_cc1101.ReceiveData(buffer);
+       Serial.printf("Received %d bytes\n", len);
+   }
+   ```
+
+**Expected Result**: CC1101 transmitting and/or receiving at 433MHz
+
+---
+
+### ✅ Phase 2 Completion Checklist
+
+- [ ] CC1101 module wired correctly
+- [ ] Antenna attached
+- [ ] Firmware uploaded with CC1101 support
+- [ ] Chip version reads as 0x14
+- [ ] Can transmit test data
+- [ ] Signal visible on SDR (if available)
+
+**🎉 Phase 2 Complete!** Sub-GHz radio working. Ready for Phase 3!
+
+---
+
+## Phase 3: Display & Sensors
+
+### Goal
+Add OLED display and I2C sensors for environmental monitoring.
+
+---
+
+### Step 3.1: Set Up Second Breadboard (5 min)
+
+1. **Place second breadboard** next to first
+
+2. **Bridge power rails**:
+   ```
+   Breadboard 1 [+] → Jumper wire → Breadboard 2 [+]
+   Breadboard 1 [-] → Jumper wire → Breadboard 2 [-]
+   ```
+
+3. **Verify power** with multimeter:
+   - Check 3.3V on both breadboards
+   - Check GND continuity
+
+**Expected Result**: Both breadboards powered
+
+---
+
+### Step 3.2: Add I2C Pull-up Resistors (10 min)
+
+**CRITICAL**: I2C requires pull-up resistors on SDA and SCL!
+
+1. **Insert resistors** (Row 5-7):
+   ```
+   4.7kΩ resistor #1:
+   - One leg to GPIO21 (SDA)
+   - Other leg to 3.3V rail
+
+   4.7kΩ resistor #2:
+   - One leg to GPIO22 (SCL)
+   - Other leg to 3.3V rail
+   ```
+
+2. **Verify with multimeter**:
+   - Measure resistance from SDA to 3.3V: ~4.7kΩ
+   - Measure resistance from SCL to 3.3V: ~4.7kΩ
+
+**Schematic**:
+```
+3.3V ──[4.7kΩ]── GPIO21 (SDA) ─┬─ To I2C devices
+3.3V ──[4.7kΩ]── GPIO22 (SCL) ─┘
+```
+
+**Expected Result**: Pull-ups installed, correct resistance measured
+
+---
+
+### Step 3.3: Wire OLED Display (10 min)
+
+1. **Insert OLED** into breadboard (Row 10-14)
+
+2. **Identify pins**:
+   ```
+   OLED Module (common pinout):
+   GND  →  Ground
+   VCC  →  3.3V (sometimes labeled 5V but works at 3.3V)
+   SCL  →  GPIO22 (shared I2C)
+   SDA  →  GPIO21 (shared I2C)
+   ```
+
+3. **Connect wires**:
+   ```
+   OLED GND → Breadboard [-]
+   OLED VCC → Breadboard [+]
+   OLED SCL → GPIO22 (via pull-up)
+   OLED SDA → GPIO21 (via pull-up)
+   ```
+
+4. **Add decoupling cap**:
+   ```
+   [100nF ceramic] between VCC and GND (next to OLED)
+   ```
+
+**Expected Result**: OLED wired to I2C bus with pull-ups
+
+---
+
+### Step 3.4: Wire BME680 Sensor (10 min)
+
+1. **Insert BME680** into breadboard (Row 20-24)
+
+2. **Connect pins**:
+   ```
+   BME680 VCC → Breadboard [+] 3.3V
+   BME680 GND → Breadboard [-]
+   BME680 SCL → GPIO22 (shared with OLED)
+   BME680 SDA → GPIO21 (shared with OLED)
+   ```
+
+3. **Add decoupling cap**:
+   ```
+   [100nF ceramic] between VCC and GND
+   ```
+
+**Expected Result**: BME680 on same I2C bus as OLED
+
+---
+
+### Step 3.5: Wire MPU9250 IMU (10 min)
+
+1. **Insert MPU9250** into breadboard (Row 30-34)
+
+2. **Connect pins**:
+   ```
+   MPU9250 VCC → Breadboard [+] 3.3V
+   MPU9250 GND → Breadboard [-]
+   MPU9250 SCL → GPIO22 (shared I2C bus)
+   MPU9250 SDA → GPIO21 (shared I2C bus)
+   ```
+
+3. **Add decoupling cap**:
+   ```
+   [100nF ceramic] between VCC and GND
+   ```
+
+**I2C Bus Overview**:
+```
+ESP32-S3 GPIO21 (SDA) ─┬─ OLED (0x3C)
+                       ├─ BME680 (0x76)
+                       └─ MPU9250 (0x68)
+
+ESP32-S3 GPIO22 (SCL) ─┴─ Shared by all
+
+Both with 4.7kΩ pull-ups to 3.3V
+```
+
+**Expected Result**: 3 I2C devices on shared bus
+
+---
+
+### Step 3.6: Test I2C Bus (10 min)
+
+1. **Add I2C scanner code**:
+   ```cpp
+   void scan_i2c() {
+       Serial.println("Scanning I2C bus...");
+       for (byte addr = 1; addr < 127; addr++) {
+           Wire.beginTransmission(addr);
+           if (Wire.endTransmission() == 0) {
+               Serial.printf("Device found at 0x%02X\n", addr);
+           }
+       }
+   }
+
+   void setup() {
+       Wire.begin(21, 22);  // SDA, SCL
+       scan_i2c();
+   }
+   ```
+
+2. **Upload and check output**:
+   ```
+   Expected:
+   ─────────────────────
+   Scanning I2C bus...
+   Device found at 0x3C  (OLED)
+   Device found at 0x68  (MPU9250)
+   Device found at 0x76  (BME680)
+   ```
+
+3. **Troubleshoot if devices missing**:
+   - Check pull-up resistors installed
+   - Verify SDA/SCL not swapped
+   - Ensure all devices powered
+   - Check device address (some BME680 use 0x77)
+
+**Expected Result**: All 3 I2C devices detected
+
+---
+
+### Step 3.7: Initialize OLED Display (15 min)
+
+1. **Add library** to `platformio.ini`:
+   ```ini
+   lib_deps =
+       ...
+       adafruit/Adafruit SSD1306
+       adafruit/Adafruit GFX Library
+   ```
+
+2. **Add initialization code**:
+   ```cpp
+   #include <Adafruit_SSD1306.h>
+
+   #define SCREEN_WIDTH 128
+   #define SCREEN_HEIGHT 64
+   Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+
+   void setup() {
+       Wire.begin(21, 22);
+
+       if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+           Serial.println("OLED init failed!");
+           return;
+       }
+
+       display.clearDisplay();
+       display.setTextSize(1);
+       display.setTextColor(SSD1306_WHITE);
+       display.setCursor(0, 0);
+       display.println("Flipper Dev Board");
+       display.println("ESP32-S3 v0.1");
+       display.display();
+   }
+   ```
+
+3. **Upload and verify**:
+   - OLED should show text immediately
+   - Adjust contrast if needed
+
+**Expected Result**: OLED displaying "Flipper Dev Board"
+
+---
+
+### Step 3.8: Read BME680 Sensor (10 min)
+
+1. **Add library**:
+   ```ini
+   lib_deps =
+       ...
+       adafruit/Adafruit BME680
+   ```
+
+2. **Read sensor**:
+   ```cpp
+   #include <Adafruit_BME680.h>
+
+   Adafruit_BME680 bme;
+
+   void setup() {
+       if (!bme.begin(0x76)) {
+           Serial.println("BME680 not found!");
+           return;
+       }
+       bme.setTemperatureOversampling(BME680_OS_8X);
+       bme.setHumidityOversampling(BME680_OS_2X);
+       bme.setPressureOversampling(BME680_OS_4X);
+   }
+
+   void loop() {
+       if (bme.performReading()) {
+           Serial.printf("Temp: %.1f°C, Humidity: %.1f%%\n",
+               bme.temperature, bme.humidity);
+
+           // Display on OLED
+           display.clearDisplay();
+           display.setCursor(0, 0);
+           display.printf("Temp: %.1fC\n", bme.temperature);
+           display.printf("Hum: %.1f%%\n", bme.humidity);
+           display.printf("Press: %.0fhPa\n", bme.pressure / 100.0);
+           display.display();
+       }
+       delay(2000);
+   }
+   ```
+
+**Expected Result**: Temperature, humidity displayed on OLED and serial
+
+---
+
+### Step 3.9: Read MPU9250 IMU (10 min)
+
+1. **Add library**:
+   ```ini
+   lib_deps =
+       ...
+       bolderflight/Bolder Flight Systems MPU9250
+   ```
+
+2. **Read accelerometer**:
+   ```cpp
+   #include <MPU9250.h>
+
+   MPU9250 imu(Wire, 0x68);
+
+   void setup() {
+       if (imu.begin() < 0) {
+           Serial.println("IMU init failed!");
+           return;
+       }
+   }
+
+   void loop() {
+       imu.readSensor();
+       Serial.printf("Accel: X=%.2f Y=%.2f Z=%.2f\n",
+           imu.getAccelX_mss(),
+           imu.getAccelY_mss(),
+           imu.getAccelZ_mss());
+       delay(100);
+   }
+   ```
+
+**Expected Result**: Accelerometer values changing when board moved
+
+---
+
+### ✅ Phase 3 Completion Checklist
+
+- [ ] Second breadboard set up with power
+- [ ] I2C pull-ups installed (4.7kΩ)
+- [ ] OLED display showing text
+- [ ] BME680 reading temperature/humidity
+- [ ] MPU9250 reading acceleration
+- [ ] All sensors updating in real-time
+- [ ] Data displayed on OLED
+
+**🎉 Phase 3 Complete!** Sensors and display working. Almost done!
+
+---
+
+## Common Issues & Solutions
+
+### Issue: "Device not found on I2C bus"
+**Solutions**:
+1. Check pull-up resistors (4.7kΩ) installed
+2. Verify SDA/SCL not swapped
+3. Try different address (0x76 vs 0x77 for BME680)
+4. Reduce I2C speed: `Wire.setClock(100000);`
+
+### Issue: "SPI device not responding"
+**Solutions**:
+1. Check CS pin goes LOW during communication
+2. Verify MISO/MOSI not swapped
+3. Add delay after CS assertion
+4. Reduce SPI clock speed
+
+### Issue: "OLED display blank"
+**Solutions**:
+1. Try address 0x3D instead of 0x3C
+2. Adjust contrast: `display.setContrast(255);`
+3. Power cycle display
+4. Check VCC is 3.3V
+
+### Issue: "Random resets or instability"
+**Solutions**:
+1. Add more decoupling capacitors (100nF near each IC)
+2. Check power supply can provide enough current
+3. Ensure all GND connections solid
+4. Reduce number of active modules
+
+---
+
+## Next Steps
+
+Once all phases working:
+
+1. **Test integration** - Run all modules simultaneously
+2. **Measure power** - Verify within limits
+3. **Test with Flipper** - Send commands, receive data
+4. **Document issues** - Note any problems for PCB design
+5. **Design PCB** - Transfer breadboard to KiCad
+
+---
+
+**Congratulations on completing the breadboard prototype!** 🎉
+
+You now have a fully functional development platform for the Ultimate Flipper Zero Dev Board!

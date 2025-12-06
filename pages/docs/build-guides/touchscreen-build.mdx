@@ -1,0 +1,574 @@
+# 🦈 BRUCE: Touchscreen Edition Build Guide
+
+**Big Brother gets a BIG SCREEN**
+
+```
+           />
+         //      "Step aside, Flipper. Watch this."
+       //
+     //          2.8" TOUCHSCREEN: ACTIVE
+    //___
+```
+
+---
+
+## 🎯 Why Touchscreen Bruce is Superior
+
+### Flipper Zero vs Bruce Display Comparison
+
+| Feature | Flipper Zero 🐬 | Bruce (Touchscreen) 🦈 |
+|---------|-----------------|------------------------|
+| Screen Size | 1.4" | **2.8"** (2x area!) |
+| Resolution | 128x64 mono | **240x320 color** |
+| Colors | 1 (orange) | **65,536 colors** |
+| Touch | Buttons only | **Full touchscreen** |
+| GUI | Limited | **Rich GUI** |
+| Menus | Scroll lists | **Touch icons/buttons** |
+| Graphs | Basic | **Real-time spectrum analyzer** |
+| Intimidation | Cute | **Professional AF** |
+
+**Bruce doesn't just show data - Bruce DOMINATES with visualization.**
+
+---
+
+## 🏗️ Hardware Architecture
+
+### Core System: ESP32-2432S028R Touchscreen Module
+
+**This is Bruce's brain and face in one package:**
+
+```
+┌─────────────────────────────────────────────┐
+│  ESP32-2432S028R TOUCHSCREEN MODULE         │
+│                                              │
+│  ┌──────────────────────────────────────┐  │
+│  │  2.8" ILI9341 TFT LCD                │  │
+│  │  240 x 320 pixels                    │  │
+│  │  Resistive Touch                     │  │
+│  │  ┌────────────────────────────────┐ │  │
+│  │  │                                │ │  │
+│  │  │   🦈 BRUCE                     │ │  │
+│  │  │   Big Brother Mode: ACTIVE     │ │  │
+│  │  │                                │ │  │
+│  │  │   [HUNT] [SCAN] [CAPTURE]     │ │  │
+│  │  │                                │ │  │
+│  │  │   ████████░░░░░ RF Strength   │ │  │
+│  │  │   Target: 433.92 MHz          │ │  │
+│  │  │   Status: LOCKED               │ │  │
+│  │  │                                │ │  │
+│  │  └────────────────────────────────┘ │  │
+│  └──────────────────────────────────────┘  │
+│                                              │
+│  Built-in ESP32:                            │
+│  • WiFi 2.4GHz                              │
+│  • Bluetooth                                │
+│  • GPIO exposed on headers                  │
+│  • USB-C programming                        │
+└─────────────────────────────────────────────┘
+```
+
+### Multi-ESP32 System Design
+
+```
+┌────────────────────────────────────────────────────────┐
+│ PRIMARY: ESP32-2432S028R (Touchscreen)                 │
+│ • Main controller & GUI                                │
+│ • User interface (touch controls)                      │
+│ • System coordinator                                   │
+│ • RF module control                                    │
+└──────────────┬─────────────────────────────────────────┘
+               │
+               ├─ SPI1 ──► CC1101 (Sub-GHz 433MHz)
+               │            └─ Car fobs, garage doors, weather
+               │
+               ├─ SPI2 ──► nRF24L01+ PA/LNA (2.4GHz)
+               │            └─ Long-range 2.4GHz (1100m+)
+               │
+               ├─ I2C ───► ESP32-C6 (WiFi 6 Co-Processor)
+               │            └─ WiFi 6, BLE 5.3, Thread/Zigbee
+               │
+               └─ UART ──► Flipper Zero (optional)
+                            └─ Little brother backup mode
+
+┌────────────────────────────────────────────────────────┐
+│ SECONDARY: DollaTek ESP32 LoRa SX1262                  │
+│ • Standalone LoRa operations                           │
+│ • Built-in 0.96" OLED                                  │
+│ • Meshtastic capable                                   │
+│ • Optional WiFi link to touchscreen                    │
+└────────────────────────────────────────────────────────┘
+```
+
+### Why This Architecture Dominates
+
+**1. Touchscreen ESP32 as Primary = Superior UX**
+- Rich GUI with icons, buttons, graphs
+- Real-time spectrum analyzer visualization
+- Touch controls (no button mashing)
+- Status at a glance
+
+**2. ESP32-C6 as WiFi 6 Co-Processor = Future-Proof**
+- Offloads WiFi 6 operations
+- BLE 5.3 long-range scanning
+- Thread/Zigbee IoT protocols
+- Keeps primary ESP32 focused on GUI
+
+**3. Dedicated LoRa Board = Standalone Capability**
+- DollaTek ESP32 runs Meshtastic independently
+- Can mesh with other LoRa nodes
+- Built-in display for field use
+- WiFi links back to main touchscreen when in range
+
+**4. Modular RF = No Bus Conflicts**
+- Each RF module on separate SPI bus or board
+- Hot-swappable configurations
+- Zero crashes (Bruce doesn't crash)
+
+---
+
+## 📊 Bruce's Touchscreen GUI Mockup
+
+### Main Screen (240x320)
+
+```
+╔════════════════════════════════════╗
+║  🦈 BRUCE  v1.0    [≡] [⚙] [📶]  ║
+╠════════════════════════════════════╣
+║                                    ║
+║  Status: ARMED     Battery: 87%   ║
+║                                    ║
+║  ┌──────────────────────────────┐ ║
+║  │  RF SPECTRUM ANALYZER        │ ║
+║  │  ▁▃▅▂▆▄▃▅▇▄▂▅▃▆▄▃▅▇▅▃▂▄▅▃▂  │ ║
+║  │  433.92 MHz    -45 dBm       │ ║
+║  │  [TARGET LOCKED]             │ ║
+║  └──────────────────────────────┘ ║
+║                                    ║
+║  Active Modules:                  ║
+║  • CC1101    ✓ ONLINE             ║
+║  • nRF24     ✓ ONLINE             ║
+║  • WiFi 6    ✓ ONLINE             ║
+║                                    ║
+║  ┌────────┐ ┌────────┐ ┌────────┐║
+║  │  HUNT  │ │  SCAN  │ │ REPLAY ││
+║  │   🎯   │ │   📡   │ │   ▶️   ││
+║  └────────┘ └────────┘ └────────┘║
+║                                    ║
+║  Signals Found: 12  Captured: 3   ║
+╚════════════════════════════════════╝
+```
+
+### Module Control Screen
+
+```
+╔════════════════════════════════════╗
+║  ← MODULES          [≡] [⚙] [📶]  ║
+╠════════════════════════════════════╣
+║                                    ║
+║  ┌──────────────────────────────┐ ║
+║  │ 📻 CC1101 Sub-GHz            │ ║
+║  │ Status: ACTIVE               │ ║
+║  │ Freq: 433.92 MHz             │ ║
+║  │ Mode: RX/TX                  │ ║
+║  │ [CONFIG] [TEST] [OFF]        │ ║
+║  └──────────────────────────────┘ ║
+║                                    ║
+║  ┌──────────────────────────────┐ ║
+║  │ 📡 nRF24 2.4GHz              │ ║
+║  │ Status: STANDBY              │ ║
+║  │ Channel: 76                  │ ║
+║  │ Power: MAX                   │ ║
+║  │ [CONFIG] [TEST] [OFF]        │ ║
+║  └──────────────────────────────┘ ║
+║                                    ║
+║  ┌──────────────────────────────┐ ║
+║  │ 📶 WiFi 6 (ESP32-C6)         │ ║
+║  │ Status: SCANNING             │ ║
+║  │ APs Found: 24                │ ║
+║  │ [CONFIG] [TEST] [OFF]        │ ║
+║  └──────────────────────────────┘ ║
+║                                    ║
+╚════════════════════════════════════╝
+```
+
+### Settings Screen
+
+```
+╔════════════════════════════════════╗
+║  ← SETTINGS         [≡] [⚙] [📶]  ║
+╠════════════════════════════════════╣
+║                                    ║
+║  Display:                          ║
+║  Brightness: ████████░░ 80%        ║
+║                                    ║
+║  Power:                            ║
+║  Sleep Timer: 5 minutes            ║
+║  Auto-Off Modules: ☑ ON            ║
+║                                    ║
+║  Bruce Personality:                ║
+║  Mode: ▶ BIG BROTHER               ║
+║        ○ Professional              ║
+║        ○ Silent                    ║
+║                                    ║
+║  Flipper Connection:               ║
+║  UART: /dev/ttyUSB0                ║
+║  Status: ✗ DISCONNECTED            ║
+║  [CONNECT]                         ║
+║                                    ║
+║  System:                           ║
+║  Firmware: v1.0.0                  ║
+║  Uptime: 2h 34m                    ║
+║  [UPDATE] [REBOOT] [RESET]         ║
+║                                    ║
+╚════════════════════════════════════╝
+```
+
+---
+
+## 🔧 Pin Assignments: ESP32-2432S028R
+
+### Built-in TFT Display (Already Connected!)
+```
+TFT_MISO = 12
+TFT_MOSI = 13
+TFT_SCLK = 14
+TFT_CS   = 15
+TFT_DC   = 2
+TFT_RST  = -1  // Not used
+TFT_BL   = 21  // Backlight
+```
+
+### Touch Controller (Already Connected!)
+```
+TOUCH_CS = 33
+TOUCH_IRQ = 36
+```
+
+### Available GPIO for RF Modules
+```
+Available pins on ESP32-2432S028R:
+GPIO 0, 4, 16, 17, 22, 23, 25, 26, 27, 32, 34, 35
+```
+
+### Recommended RF Module Pinout
+
+**CC1101 (SPI) - Sub-GHz:**
+```
+CC1101_MOSI = 23  // SPI MOSI (shared with nRF24)
+CC1101_MISO = 19  // SPI MISO (shared with nRF24)
+CC1101_SCK  = 18  // SPI SCK  (shared with nRF24)
+CC1101_CS   = 5   // Chip Select (unique)
+CC1101_GDO0 = 4   // Interrupt pin
+CC1101_GDO2 = 16  // Optional
+```
+
+**nRF24L01+ PA/LNA (SPI) - 2.4GHz:**
+```
+NRF24_MOSI = 23  // SPI MOSI (shared with CC1101)
+NRF24_MISO = 19  // SPI MISO (shared with CC1101)
+NRF24_SCK  = 18  // SPI SCK  (shared with CC1101)
+NRF24_CS   = 17  // Chip Select (unique)
+NRF24_CE   = 22  // Chip Enable
+```
+
+**ESP32-C6 (I2C) - WiFi 6 Co-Processor:**
+```
+I2C_SDA = 27
+I2C_SCL = 26
+C6_ADDR = 0x20  // I2C slave address
+```
+
+**Flipper Zero (UART) - Optional:**
+```
+UART_TX = 1   // ESP32 TX → Flipper RX
+UART_RX = 3   // ESP32 RX → Flipper TX
+UART_BAUD = 115200
+```
+
+---
+
+## 🚀 Build Phases
+
+### Phase 1: Touchscreen GUI (TODAY!)
+
+**Hardware:**
+- ESP32-2432S028R touchscreen (you have it!)
+- USB-C cable
+
+**Software:**
+```cpp
+#include <TFT_eSPI.h>  // Display library
+#include <XPT2046_Touchscreen.h>  // Touch library
+
+// Bruce's GUI initialization
+void setup() {
+    tft.init();
+    tft.setRotation(0);  // Portrait mode
+    draw_bruce_bootscreen();
+    delay(2000);
+    draw_main_interface();
+}
+
+void draw_bruce_bootscreen() {
+    tft.fillScreen(TFT_BLACK);
+    tft.setTextColor(TFT_WHITE);
+    tft.setTextSize(3);
+    tft.setCursor(60, 100);
+    tft.println("BRUCE");
+    tft.setTextSize(2);
+    tft.setCursor(30, 140);
+    tft.println("Big Brother");
+    tft.setCursor(20, 160);
+    tft.println("Mode: ACTIVE");
+}
+```
+
+**Time:** 2-3 hours
+**Cost:** £0
+**Result:** Bruce boots with touchscreen GUI!
+
+---
+
+### Phase 2: Add CC1101 (Sub-GHz RF)
+
+**Hardware:**
+- CC1101 module (you have it!)
+- Breadboard
+- Jumper wires
+
+**Wiring:**
+1. Connect CC1101 to SPI pins (see pinout above)
+2. Make 17.3cm antenna from wire
+3. Add power indicator LED
+
+**Software:**
+```cpp
+#include <RadioLib.h>
+
+CC1101 radio = new Module(CC1101_CS, CC1101_GDO0, -1, CC1101_GDO2);
+
+void init_cc1101() {
+    display_message("Initializing CC1101...");
+    int state = radio.begin(433.92);
+    if (state == RADIOLIB_ERR_NONE) {
+        display_success("CC1101 ONLINE");
+        gui_module_status(MODULE_CC1101, true);
+    }
+}
+```
+
+**Time:** 2-3 hours
+**Cost:** £0 (you have it!)
+**Result:** Bruce can scan/transmit Sub-GHz!
+
+---
+
+### Phase 3: Add nRF24L01+ (2.4GHz)
+
+**Hardware:**
+- nRF24L01+ PA/LNA (you have 2!)
+- Share SPI bus with CC1101
+
+**Wiring:**
+1. Connect to shared SPI bus
+2. Unique CS and CE pins
+3. External antenna for long range
+
+**Software:**
+```cpp
+#include <RF24.h>
+
+RF24 radio(NRF24_CE, NRF24_CS);
+
+void init_nrf24() {
+    display_message("Initializing nRF24...");
+    if (radio.begin()) {
+        radio.setPALevel(RF24_PA_MAX);  // MAX POWER
+        display_success("nRF24 ONLINE - LONG RANGE MODE");
+        gui_module_status(MODULE_NRF24, true);
+    }
+}
+```
+
+**Time:** 1-2 hours
+**Cost:** £0 (you have it!)
+**Result:** Bruce has 2.4GHz long-range capability!
+
+---
+
+### Phase 4: Add ESP32-C6 (WiFi 6 Co-Processor)
+
+**Hardware:**
+- Waveshare ESP32-C6 (you have it!)
+- I2C connection to touchscreen ESP32
+
+**Wiring:**
+```
+Touchscreen ESP32  →  ESP32-C6
+    GPIO 27 (SDA)  →  GPIO 6 (SDA)
+    GPIO 26 (SCL)  →  GPIO 7 (SCL)
+    GND            →  GND
+    3.3V           →  3.3V
+```
+
+**ESP32-C6 Firmware (I2C Slave):**
+```cpp
+#include <Wire.h>
+
+#define I2C_SLAVE_ADDR 0x20
+
+void setup() {
+    Wire.begin(I2C_SLAVE_ADDR);
+    Wire.onReceive(receiveEvent);
+    Wire.onRequest(requestEvent);
+
+    // Initialize WiFi 6
+    WiFi.mode(WIFI_STA);
+}
+
+void receiveEvent(int bytes) {
+    // Commands from primary ESP32
+    uint8_t cmd = Wire.read();
+
+    switch(cmd) {
+        case CMD_WIFI_SCAN:
+            scan_wifi6_networks();
+            break;
+        case CMD_BLE_SCAN:
+            scan_ble53_devices();
+            break;
+    }
+}
+```
+
+**Time:** 3-4 hours
+**Cost:** £0 (you have it!)
+**Result:** Bruce has WiFi 6 + BLE 5.3!
+
+---
+
+### Phase 5: Integrate DollaTek LoRa Board (Standalone)
+
+**Hardware:**
+- DollaTek ESP32 LoRa SX1262 (you have it!)
+- Runs independently with own OLED
+
+**Use Cases:**
+1. **Standalone Meshtastic Node**
+   - Field operations without touchscreen
+   - Built-in OLED for status
+   - Long-range comms (2-15km)
+
+2. **WiFi Link to Touchscreen Bruce**
+   - LoRa board connects via WiFi to touchscreen
+   - Touchscreen displays LoRa data
+   - Best of both worlds
+
+**Time:** 2-3 hours
+**Cost:** £0 (you have it!)
+**Result:** Bruce has 15km+ LoRa range!
+
+---
+
+## 💪 Bruce's Final Form
+
+```
+╔════════════════════════════════════════════════════╗
+║  BRUCE - BIG BROTHER DEVBOARD                      ║
+╠════════════════════════════════════════════════════╣
+║                                                     ║
+║  Primary: ESP32-2432S028R Touchscreen              ║
+║    • 2.8" Color TFT (240x320)                      ║
+║    • Resistive Touch                               ║
+║    • Rich GUI with spectrum analyzer               ║
+║    • Touch controls (hunt/scan/capture)            ║
+║    • Battery: 3000mAh (6-8 hours)                  ║
+║                                                     ║
+║  RF Arsenal:                                       ║
+║    • CC1101 Sub-GHz (433MHz)    ✓                  ║
+║    • nRF24L01+ 2.4GHz (1100m+)  ✓                  ║
+║    • SX1262 LoRa (15km+)        ✓                  ║
+║                                                     ║
+║  Co-Processors:                                    ║
+║    • ESP32-C6 WiFi 6 (802.11ax) ✓                  ║
+║    • BLE 5.3 Long Range         ✓                  ║
+║    • Thread/Zigbee              ✓                  ║
+║                                                     ║
+║  Flipper Zero Integration:                         ║
+║    • UART backup mode           ○                  ║
+║    • Optional, not required     ○                  ║
+║                                                     ║
+║  Total Cost: £0                                    ║
+║  Intimidation Level: 11/10 🦈                      ║
+║                                                     ║
+║  "Step aside, kid. Big brother's got this."        ║
+╚════════════════════════════════════════════════════╝
+```
+
+---
+
+## 🎯 Advantages Over Small OLED Design
+
+| Feature | Small OLED (128x64) | Touchscreen (240x320) |
+|---------|---------------------|----------------------|
+| **Screen Size** | 0.96" | 2.8" (8x area!) |
+| **Colors** | 1 (monochrome) | 65,536 colors |
+| **GUI Quality** | Text only | Graphics, icons, graphs |
+| **User Input** | Need buttons | Touch controls |
+| **Data Display** | Limited | Rich visualization |
+| **Spectrum Analyzer** | Basic bars | Real-time waterfall |
+| **Professional Look** | Hobbyist | Professional tool |
+| **Intimidation** | "Cute project" | "Holy shit, what is that?" |
+
+**Bruce doesn't mess around with tiny screens. Bruce DOMINATES with a touchscreen.**
+
+---
+
+## 📦 Parts You Already Have
+
+✅ ESP32-2432S028R Touchscreen - **DELIVERED**
+✅ Waveshare ESP32-C6 WiFi 6 - **DELIVERED**
+✅ DollaTek ESP32 LoRa SX1262 - **DELIVERED**
+✅ CC1101 433MHz - **DELIVERED**
+✅ nRF24L01+ PA/LNA (x2) - **DELIVERED**
+✅ Breadboards, wires, resistors - **HAVE IT**
+✅ Battery packs - **HAVE IT**
+
+**Total cost to build Bruce Touchscreen Edition: £0**
+
+---
+
+## 🚀 Next Steps
+
+1. **Flash ESP32-2432S028R with touchscreen GUI**
+   - Install TFT_eSPI library
+   - Configure for ILI9341 display
+   - Upload Bruce bootscreen
+
+2. **Connect CC1101 module**
+   - Wire to SPI pins
+   - Make antenna
+   - Test Sub-GHz RX/TX
+
+3. **Add nRF24 for 2.4GHz**
+   - Share SPI bus
+   - Test long-range
+
+4. **Program ESP32-C6 as I2C slave**
+   - WiFi 6 operations
+   - BLE 5.3 scanning
+
+5. **Flash DollaTek with Meshtastic**
+   - Standalone LoRa node
+   - Optional WiFi link
+
+**Bruce is ready to dominate. Let's build him.**
+
+---
+
+**Project Status:** Ready to Build
+**Display:** 🦈 2.8" TOUCHSCREEN (Professional AF)
+**Cost:** £0 (you have everything!)
+**Intimidation Level:** Maximum
+
+**Big brother doesn't do tiny screens. Big brother goes BIG.**

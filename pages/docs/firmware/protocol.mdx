@@ -1,0 +1,152 @@
+# Flipper Zero - ESP32 Communication Protocol
+
+## Overview
+
+This document describes the serial communication protocol between Flipper Zero and the ESP32 dev board.
+
+## Physical Layer
+
+- **Interface**: UART (3.3V TTL)
+- **Baud Rate**: 115200
+- **Data Bits**: 8
+- **Parity**: None
+- **Stop Bits**: 1
+- **Flow Control**: None
+
+## Packet Structure
+
+All communication uses the following packet structure:
+
+```
++------------+----------+---------+--------+------------+
+| START_BYTE | COMMAND  | LENGTH  | DATA   | CHECKSUM   |
++------------+----------+---------+--------+------------+
+|   1 byte   |  1 byte  | 1 byte  | N bytes|   1 byte   |
++------------+----------+---------+--------+------------+
+```
+
+### Fields
+
+- **START_BYTE**: `0xAA` - Packet start marker
+- **COMMAND**: Command identifier (see Command List)
+- **LENGTH**: Number of data bytes (0-255)
+- **DATA**: Command payload
+- **CHECKSUM**: XOR of all DATA bytes
+
+## Command List
+
+### System Commands
+
+| Command | Code | Description | Data |
+|---------|------|-------------|------|
+| PING | `0x01` | Check connection | None |
+| GET_STATUS | `0x02` | Request system status | None |
+| SEND_DATA | `0x03` | Generic data transfer | Variable |
+
+### WiFi Commands
+
+| Command | Code | Description | Data |
+|---------|------|-------------|------|
+| WIFI_SCAN | `0x10` | Start WiFi scan | None |
+| WIFI_CONNECT | `0x11` | Connect to AP | SSID + Password |
+| WIFI_DISCONNECT | `0x12` | Disconnect from AP | None |
+| WIFI_GET_RESULTS | `0x13` | Get scan results | None |
+
+### Bluetooth Commands
+
+| Command | Code | Description | Data |
+|---------|------|-------------|------|
+| BLE_SCAN | `0x20` | Start BLE scan | None |
+| BLE_CONNECT | `0x21` | Connect to device | MAC address |
+| BLE_DISCONNECT | `0x22` | Disconnect | None |
+
+### GPIO Commands
+
+| Command | Code | Description | Data |
+|---------|------|-------------|------|
+| GPIO_SET | `0x30` | Set GPIO state | Pin + Value |
+| GPIO_GET | `0x31` | Read GPIO state | Pin |
+
+### Bus Commands
+
+| Command | Code | Description | Data |
+|---------|------|-------------|------|
+| I2C_TRANSFER | `0x40` | I2C read/write | Addr + Data |
+| SPI_TRANSFER | `0x41` | SPI transfer | Data |
+
+## Response Codes
+
+| Response | Code | Description |
+|----------|------|-------------|
+| OK | `0x00` | Command successful |
+| ERROR | `0xFF` | General error |
+| PONG | `0xFE` | Response to PING |
+| BUSY | `0xFD` | Device busy |
+| INVALID_CMD | `0xFC` | Unknown command |
+
+## Example Transactions
+
+### Ping-Pong
+**Request from Flipper:**
+```
+AA 01 00 00
+```
+- START: `0xAA`
+- CMD: `0x01` (PING)
+- LEN: `0x00`
+- CHECKSUM: `0x00`
+
+**Response from ESP32:**
+```
+AA FE 00 00
+```
+- START: `0xAA`
+- CMD: `0xFE` (PONG)
+- LEN: `0x00`
+- CHECKSUM: `0x00`
+
+### Get Status
+**Request:**
+```
+AA 02 00 00
+```
+
+**Response:**
+```
+AA 02 04 01 02 00 00 07
+```
+- Status byte: `0x01` (OK)
+- Connected ESPs: `0x02`
+- Reserved: `0x00 0x00`
+- Checksum: `0x07` (XOR of data bytes)
+
+### WiFi Scan
+**Request:**
+```
+AA 10 00 00
+```
+
+**Response (multi-packet):**
+```
+AA 10 20 [32 bytes of scan data] [checksum]
+```
+
+## Error Handling
+
+- Invalid packets are silently dropped
+- Timeout: 1000ms for responses
+- Maximum retries: 3
+- On persistent errors, reset communication
+
+## Timing
+
+- Minimum inter-packet delay: 10ms
+- Maximum response time: 5000ms (for scans)
+- Keepalive interval: 30s (optional)
+
+## Future Extensions
+
+- Packet acknowledgment system
+- Multi-byte length field for larger payloads
+- Compression for WiFi scan results
+- Binary protocol versioning

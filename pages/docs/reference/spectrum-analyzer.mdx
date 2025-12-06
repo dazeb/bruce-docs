@@ -1,0 +1,366 @@
+# Bruce Spectrum Analyzer Feature 🦈📊
+
+**Status**: Planned for Phase 4
+**Priority**: High - Core Bruce feature
+**Display**: DollaTek 2.8" ILI9341 TFT (arriving tomorrow)
+
+---
+
+## Overview
+
+Bruce's **real-time spectrum analyzer** will be one of his most intimidating and useful features - visualizing RF activity across multiple bands simultaneously. This transforms Bruce from a simple RF tool into a professional security research platform.
+
+## Visual Design Concept
+
+**Display Orientation**: **PORTRAIT MODE ONLY** (240 width × 320 height) 📱
+
+### Main Display Layout (240×320 portrait)
+
+```
+┌────────────────────────┐ 240px wide
+│ BRUCE SPECTRUM    [≡] │ ← Header (25px)
+├────────────────────────┤
+│  ████                  │
+│  ████  █               │
+│  ████  █    █          │
+│  ████  █    █  █       │ ← Spectrum
+│  ████  ██   █  █   █   │   bars
+│  ████  ██   █  ██  █   │   (180px
+│  ████  ███  ██ ██  ██  │    height)
+│  ████  ███  ██ ███ ███ │
+│  ████  ████ ██████████ │
+│__████__████_██████████_│ ← Baseline
+│ 315 433 868 915 2.4G W │ ← Freq labels
+├────────────────────────┤
+│ 433.92 MHz | -67 dBm  │ ← Selected
+│ ASK/OOK | BW: 250kHz  │   frequency
+├────────────────────────┤   (30px)
+│ [SWEEP] [LOCK] [LOG]  │ ← Control
+├────────────────────────┤   buttons
+│ Scanning... Channels:8 │   (25px)
+│ Mode: AUTO | Hits: 42 │ ← Status
+└────────────────────────┘   (35px)
+                             320px tall
+```
+
+### Layout Breakdown (Pixel-Perfect)
+
+```
+Y-Coordinates (Portrait 240×320):
+───────────────────────────────────
+0-25px    → Header bar (BRUCE SPECTRUM)
+25-205px  → Spectrum bars (180px tall)
+            - Bar drawing area
+            - Baseline at Y=205
+205-220px → Frequency labels (315/433/868/915/2.4G/WiFi)
+220-250px → Selected frequency info (2 lines)
+250-275px → Control buttons [SWEEP] [LOCK] [LOG]
+275-320px → Status bar (2 lines: scanning state + stats)
+
+X-Coordinates (240 width):
+───────────────────────────────────
+Bars:     → Full 240px width, divided by number of channels
+            (e.g., 8 channels = 30px per bar)
+Buttons:  → [SWEEP] 0-75px, [LOCK] 80-155px, [LOG] 160-235px
+Text:     → Left-aligned at X=5px
+          → Right-aligned at X=235px
+```
+
+### Color Scheme (Bruce's Intimidating Palette)
+
+```cpp
+// Signal strength color coding
+#define COLOR_SIGNAL_WEAK    TFT_BLUE      // < -80 dBm (blue = cold/weak)
+#define COLOR_SIGNAL_LOW     TFT_GREEN     // -80 to -60 dBm
+#define COLOR_SIGNAL_MEDIUM  TFT_YELLOW    // -60 to -40 dBm
+#define COLOR_SIGNAL_HIGH    TFT_ORANGE    // -40 to -20 dBm
+#define COLOR_SIGNAL_STRONG  TFT_RED       // > -20 dBm (red = hot/strong)
+
+// Bruce's shark theme
+#define COLOR_BACKGROUND     TFT_BLACK
+#define COLOR_GRID           0x2104        // Dark gray grid lines
+#define COLOR_TEXT           TFT_WHITE
+#define COLOR_HEADER         TFT_NAVY
+#define COLOR_LOCKED         TFT_CYAN      // When locked on target
+```
+
+## Use Cases
+
+### 1. WiFi/BLE Network Scanning (2.4GHz)
+
+**Hardware**: nRF24L01+ PA/LNA or ESP32 built-in WiFi
+
+**Display**:
+- Scan 2.4GHz ISM band (2.400 - 2.483 GHz)
+- Show WiFi channels 1-14 as vertical bars
+- Color-code by signal strength (RSSI)
+- Identify crowded channels vs clear channels
+- Show BLE advertising packets as spikes
+
+**Bruce's Message**: "Sweeping 2.4GHz... Found 8 networks. Channel 6 is a warzone."
+
+**Application**:
+- Find best WiFi channel for your network
+- Identify rogue access points
+- Locate hidden cameras/bugs (many use WiFi)
+- BLE device discovery
+- Microwave oven interference detection (seriously!)
+
+### 2. Sub-GHz Frequency Detection (CC1101)
+
+**Hardware**: CC1101 433MHz module
+
+**Display**:
+- Sweep common frequencies: 315, 433, 868, 915 MHz
+- Real-time RSSI display for each band
+- Spike detection for transmissions (car keys, remotes, sensors)
+- Adjustable bandwidth (58, 102, 203, 406 kHz)
+
+**Bruce's Message**: "Target locked: 433.92 MHz. Decoding ASK/OOK... Car key fob detected."
+
+**Application**:
+- Car key fob detection (433.92 MHz)
+- Garage door remotes (315 MHz, 390 MHz)
+- Tire pressure sensors (315 MHz, 433 MHz)
+- Weather station sensors (868 MHz Europe, 915 MHz USA)
+- ISM band monitoring
+- Signal capture preparation (know before you record)
+
+### 3. Multi-Band Simultaneous View
+
+**Hardware**: CC1101 + nRF24 + ESP32 WiFi (all active)
+
+**Display**:
+- Split screen showing all bands at once
+- Sub-GHz on left (315/433/868/915 MHz)
+- 2.4GHz on right (WiFi/BLE)
+- Color-coded activity in each band
+
+**Bruce's Message**: "Everything online. Beast mode activated. Nothing escapes me."
+
+**Application**:
+- Professional RF environment survey
+- Identify interference sources
+- Multi-protocol device detection (IoT sensors)
+- Security audit (what's transmitting in this room?)
+
+## Technical Implementation
+
+### Data Collection (Background Task)
+
+```cpp
+// FreeRTOS task for RF scanning
+void spectrum_analyzer_task(void *params) {
+    while(1) {
+        // Scan Sub-GHz bands (CC1101)
+        for (int freq = 315; freq <= 915; freq += step) {
+            cc1101_set_frequency(freq);
+            int rssi = cc1101_read_rssi();
+            spectrum_data_subghz[freq] = rssi;
+        }
+
+        // Scan 2.4GHz bands (nRF24 or WiFi)
+        for (int channel = 0; channel <= 125; channel++) {
+            nrf24_set_channel(channel);
+            int rssi = nrf24_read_rssi();
+            spectrum_data_24ghz[channel] = rssi;
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(50)); // Update every 50ms
+    }
+}
+```
+
+### Display Update (Main Thread or Separate Task)
+
+```cpp
+void draw_spectrum_bars(int16_t *data, int data_size) {
+    // PORTRAIT MODE: 240 width × 320 height
+    int bar_width = 240 / data_size;
+    int max_height = 200;  // Spectrum display area
+    int baseline_y = 230;  // Y position of baseline
+
+    for (int i = 0; i < data_size; i++) {
+        // Convert RSSI to bar height (0-200 pixels)
+        int height = map(data[i], -100, -20, 0, max_height);
+        height = constrain(height, 0, max_height);
+
+        // Color based on signal strength
+        uint16_t color = get_signal_color(data[i]);
+
+        // Draw bar from bottom up
+        int x = i * bar_width;
+        int y = baseline_y - height;  // Start from baseline
+        tft.fillRect(x, y, bar_width - 2, height, color);
+    }
+}
+
+uint16_t get_signal_color(int rssi) {
+    if (rssi > -20) return COLOR_SIGNAL_STRONG;  // Red
+    if (rssi > -40) return COLOR_SIGNAL_HIGH;    // Orange
+    if (rssi > -60) return COLOR_SIGNAL_MEDIUM;  // Yellow
+    if (rssi > -80) return COLOR_SIGNAL_LOW;     // Green
+    return COLOR_SIGNAL_WEAK;                    // Blue
+}
+```
+
+### Touch Interaction
+
+```cpp
+void handle_spectrum_touch(int x, int y) {
+    // PORTRAIT MODE: Check if touch is in spectrum area (y: 30-230)
+    if (y < 30 || y > 230) return;  // Outside spectrum area
+
+    // Touch on spectrum bar = lock onto that frequency
+    int bar_width = 240 / num_channels;
+    int selected_channel = x / bar_width;
+
+    // Lock RF module to selected frequency
+    cc1101_set_frequency(frequencies[selected_channel]);
+    locked_frequency = frequencies[selected_channel];
+    locked = true;
+
+    // Visual feedback - highlight selected bar
+    tft.drawRect(selected_channel * bar_width, 30, bar_width, 200, COLOR_LOCKED);
+
+    Serial.printf("Locked on: %d MHz\n", locked_frequency);
+}
+```
+
+## Performance Considerations
+
+### Update Rate
+- **Sweep mode**: Update every 50-100ms (10-20 FPS)
+- **Locked mode**: Faster updates on single frequency (20-50ms)
+- **Battery mode**: Slower updates (200-500ms) to save power
+
+### Display Optimization
+- Use partial screen updates (only redraw changed bars)
+- Use DMA for faster SPI transfers to display
+- Pre-calculate color lookup tables
+- Consider using LVGL's chart widget (handles buffering)
+
+### RF Module Speed
+- **CC1101**: ~1-2ms per frequency hop + RSSI read
+- **nRF24**: ~0.5ms per channel hop + carrier detect
+- **ESP32 WiFi**: Native WiFi scan ~1-2 seconds (slower but comprehensive)
+
+## Future Enhancements
+
+### Waterfall Display (Signal History)
+```
+┌─────────────────────────────────┐
+│ Frequency →                     │
+│ ░░░░░░█████████░░░░░░░░░░  ↑   │
+│ ░░░░████████████░░░░░░░░░  │   │
+│ ░░██████████████░░░░░░░░░  │   │
+│ ████████████████░░░░░░░░░  │   │
+│ ████████████████░░░░░░░░░  │   │
+│ ██████░░████████░░░░░░░░░  T   │
+│ ████░░░░████████░░░░░░░░░  i   │
+│ ██░░░░░░████████░░░░░░░░░  m   │
+│ ░░░░░░░░████████░░░░░░░░░  e   │
+│ ░░░░░░░░████████░░░░░░░░░  ↓   │
+└─────────────────────────────────┘
+```
+Shows signal history over time (newest at top, scrolls down).
+
+### Peak Hold Mode
+Keep highest RSSI value for each frequency (like professional spectrum analyzers).
+
+### Frequency Markers
+Touch to drop markers at specific frequencies, measure bandwidth between markers.
+
+### Auto-Logging
+Automatically log high-strength signals to SD card with timestamp.
+
+### Export to CSV
+Save spectrum data for analysis in external tools (MATLAB, Python, etc.).
+
+## Libraries & Resources
+
+### LVGL Chart Widget
+```cpp
+// Use LVGL for professional-looking charts
+lv_obj_t *chart = lv_chart_create(lv_screen_active());
+lv_chart_set_type(chart, LV_CHART_TYPE_BAR);
+lv_chart_set_point_count(chart, num_channels);
+lv_chart_set_range(chart, LV_CHART_AXIS_PRIMARY_Y, -100, -20);
+
+// Update data
+lv_chart_series_t *ser = lv_chart_add_series(chart, lv_palette_main(LV_PALETTE_RED), LV_CHART_AXIS_PRIMARY_Y);
+lv_chart_set_all_value(chart, ser, spectrum_data);
+```
+
+### RadioLib (RF Library)
+```cpp
+// Use RadioLib for CC1101 control
+#include <RadioLib.h>
+
+CC1101 radio = new Module(CS_PIN, GDO0_PIN, GDO2_PIN);
+
+// Set frequency and read RSSI
+radio.setFrequency(433.92);
+int rssi = radio.getRSSI();
+```
+
+### ESP32 WiFi Spectrum
+```cpp
+// Use ESP32 native WiFi for 2.4GHz scanning
+#include <WiFi.h>
+
+void scan_wifi_spectrum() {
+    for (int ch = 1; ch <= 14; ch++) {
+        wifi_country_t country = {.cc="XX", .schan=ch, .nchan=1};
+        esp_wifi_set_country(&country);
+
+        int rssi = WiFi.RSSI(0);  // Get signal strength
+        spectrum_data_wifi[ch] = rssi;
+    }
+}
+```
+
+## Power Consumption
+
+| Mode | Current Draw | Battery Life (3000mAh) |
+|------|--------------|------------------------|
+| **Idle** | 150mA | ~20 hours |
+| **WiFi scan only** | 200mA | ~15 hours |
+| **Sub-GHz scan only** | 180mA | ~16 hours |
+| **Full spectrum (all RF)** | 350mA | ~8.5 hours |
+| **Display off** | 100mA | ~30 hours |
+
+## Why This Feature Makes Bruce Intimidating 🦈
+
+1. **Professional Tool Aesthetic**: Real spectrum analyzers cost $500-5000+
+2. **Instant Visual Feedback**: See RF environment at a glance
+3. **Multi-Band Coverage**: 315 MHz to 2.4 GHz in one view
+4. **Touch-Interactive**: Lock onto signals with a tap
+5. **Color-Coded Intensity**: Green = safe, Red = HOT 🔥
+6. **Security Research**: Find hidden transmitters, rogue devices
+7. **Network Optimization**: Find best WiFi channels
+8. **Learning Tool**: Understand RF environment visually
+
+**Bruce's Philosophy**: "I don't just scan frequencies. I OWN the spectrum. Nothing transmits without me knowing." 🦈
+
+---
+
+## Implementation Priority
+
+**Phase 4 Feature** (after basic RF integration works)
+
+**Prerequisites**:
+- ✅ DollaTek ILI9341 display working
+- ✅ Touch calibration complete
+- ⏳ CC1101 module wired and tested
+- ⏳ nRF24 module wired and tested
+- ⏳ Basic RF scanning functions working
+
+**Estimated Development Time**: 2-3 days
+- Day 1: Basic spectrum display with fake data
+- Day 2: Integrate real CC1101 RSSI data
+- Day 3: Add touch interaction, color coding, polish
+
+---
+
+**"Bruce doesn't just see the RF spectrum. He dominates it."** 🦈📊
