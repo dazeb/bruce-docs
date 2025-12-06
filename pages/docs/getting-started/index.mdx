@@ -1,0 +1,111 @@
+# Getting Started with BRUCE
+
+Welcome to BRUCE - Big Brother Ultimate Communication Equipment! This guide will help you get started with understanding and building your own BRUCE device.
+
+## What is BRUCE?
+
+BRUCE is a professional-grade wireless security research platform that serves as Flipper Zero's powerful big brother. It features:
+
+- **Multi-processor architecture** (ESP32-S3 + ESP32-C6 + RP2040)
+- **Extensive RF capabilities** (WiFi 6, BLE 5.3, Sub-GHz, LoRa, NFC/RFID)
+- **Modular plugin-based firmware**
+- **Professional security research tools**
+
+## Prerequisites
+
+Before you begin, you should have:
+
+- Basic understanding of electronics and microcontrollers
+- Soldering skills (or willingness to learn)
+- ESP32 development experience (helpful but not required)
+- Git for version control
+- PlatformIO or Arduino IDE
+
+## Project Overview
+
+### Architecture
+
+BRUCE uses a multi-processor system with intelligent bus isolation:
+
+**ESP32-S3 (Primary Controller)**
+- Main coordinator and Flipper Zero interface
+- WiFi/BLE operations
+- Display and power management
+- File system operations (SD card)
+
+**ESP32-C6 (Secondary - WiFi 6/IoT)**
+- WiFi 6 (802.11ax) operations
+- BLE 5.3 long-range scanning
+- Thread/Zigbee protocol handling
+
+**RP2040 (GPIO Expansion - Optional)**
+- 30 GPIO pins for sensors and expansion
+- ADC operations and PWM generation
+
+### Key Innovation: Multi-Bus Architecture
+
+BRUCE solves the BFFB SPI bus conflict problem with **3 isolated SPI buses**:
+
+- **SPI1**: Triple CC1101 modules (315/433/915MHz)
+- **SPI2**: nRF24L01+, LoRa, Flash, NFC
+- **SPI3**: MicroSD card (dedicated)
+
+This prevents bus conflicts that cause crashes in other designs.
+
+## Operating Modes
+
+BRUCE can operate in three distinct modes:
+
+### 1. Sidekick Mode 🐬↔️🦈
+BRUCE works as a peripheral to Flipper Zero:
+- Connected via UART
+- Extended RF range and capabilities
+- Battery-backed operation
+- "Hey kid, need backup?"
+
+### 2. Solo Hunter Mode 🦈
+BRUCE works independently:
+- Standalone with touchscreen UI
+- GPS tracking and data logging
+- Meshtastic communications
+- "I work alone."
+
+### 3. Hybrid Mode 🐬🦈 (Recommended)
+Best of both worlds:
+- Works alone when needed
+- Enhanced by Flipper connection
+- Seamless mode switching
+
+## What You Need
+
+Check the [Hardware](/docs/hardware) section for complete Bill of Materials (BOM).
+
+### Minimum Build (Touchscreen-based)
+- ESP32-2432S028R ("Cheap Yellow Display") - £10-15
+- CC1101 433MHz module - £3-5
+- 18650 battery + holder - £5-10
+- Breadboard and jumper wires
+
+### Full Build
+- All minimum components plus:
+- ESP32-C6 board (WiFi 6)
+- Additional RF modules (nRF24, LoRa)
+- Sensors (GPS, BME680, etc.)
+- Custom PCB (optional)
+
+## Next Steps
+
+1. **[Read the Introduction](/docs/getting-started/introduction)** - Understand the project philosophy
+2. **[Check Project Status](/docs/getting-started/status)** - See current development state
+3. **[Review Hardware Requirements](/docs/hardware)** - Understand what you need
+4. **[Follow Build Guides](/docs/build-guides)** - Start building your BRUCE
+
+## Community and Support
+
+- **GitHub Repository**: [esp32-flipper-devboard](https://github.com/dazeb/esp32-flipper-devboard)
+- **Issues**: Report bugs and request features on GitHub
+- **Discussions**: Share your builds and ask questions
+
+---
+
+Ready to dive deeper? Continue to the [Introduction](/docs/getting-started/introduction) to learn about Bruce's personality and design philosophy.

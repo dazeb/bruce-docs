@@ -1,0 +1,190 @@
+# Build Guides
+
+Ready to build your BRUCE? These step-by-step guides will walk you through assembling your own Big Brother device.
+
+## Choose Your Build
+
+BRUCE offers flexibility in how you build it. Choose the approach that best fits your needs and available components.
+
+### Recommended Builds
+
+#### 1. Touchscreen Build (ESP32-2432S028R)
+**Best for: Beginners, standalone operation**
+
+The ESP32-2432S028R ("Cheap Yellow Display" or CYD) provides everything you need in one board:
+- 2.8" touchscreen display (240×320, 65K colors)
+- Built-in ESP32-WROOM-32
+- RGB LED, speaker, MicroSD slot
+- Lower power consumption
+- Huge community support
+- Cost: £10-15
+
+Perfect for Solo Hunter Mode or as a display controller.
+
+**[Start Touchscreen Build →](/docs/build-guides/touchscreen-build)**
+
+#### 2. Minimal Build
+**Best for: Learning, prototyping**
+
+Start simple with essential components:
+- ESP32-S3 board
+- Single CC1101 module (433MHz)
+- OLED display (SSD1306)
+- Breadboard setup
+- Cost: £20-30
+
+Great for learning the architecture and testing firmware.
+
+**[Start Minimal Build →](/docs/build-guides/minimal-build)**
+
+#### 3. Full Build
+**Best for: Advanced users, maximum capabilities**
+
+Complete BRUCE with all features:
+- ESP32-S3 primary controller
+- ESP32-C6 WiFi 6 co-processor
+- Triple CC1101 modules
+- nRF24L01+ PA/LNA
+- SX1276 LoRa module
+- PN532 NFC/RFID
+- Sensors and GPS
+- Cost: £100-150
+
+The ultimate security research platform.
+
+**[Start Full Build →](/docs/build-guides/full-build)**
+
+## Build Comparison
+
+| Feature | Touchscreen | Minimal | Full |
+|---------|------------|---------|------|
+| **Display** | 2.8" TFT Touch | OLED | Your choice |
+| **RF Modules** | Add external | 1× CC1101 | All modules |
+| **WiFi 6** | ✗ | ✗ | ✓ |
+| **GPS** | Optional | ✗ | ✓ |
+| **Battery** | Built-in support | Optional | ✓ |
+| **Difficulty** | Easy | Easy | Advanced |
+| **Cost** | £10-30 | £20-30 | £100-150 |
+| **Build Time** | 1-2 hours | 2-4 hours | 8-12 hours |
+
+## Prerequisites
+
+Before starting any build, ensure you have:
+
+### Tools
+- Soldering iron (if using headers/permanent connections)
+- Multimeter for testing
+- Wire strippers/cutters
+- Small screwdriver set
+- Breadboard (for prototyping)
+
+### Knowledge
+- Basic electronics understanding
+- Familiarity with breadboards
+- ESP32 programming basics
+- Git for firmware
+
+### Software
+- PlatformIO or Arduino IDE
+- Git
+- Serial terminal (PuTTY, screen, etc.)
+- (Optional) ESPHome Flasher
+
+## General Build Process
+
+All builds follow this general workflow:
+
+### 1. Planning
+- Read the complete build guide
+- Verify you have all components
+- Review wiring diagrams
+- Understand bus architecture
+
+### 2. Assembly
+- Start with power connections
+- Add communication buses (I2C, SPI, UART)
+- Connect modules one at a time
+- Test each module before adding next
+
+### 3. Testing
+- Power-on test (LED indicators)
+- I2C bus scan
+- UART communication
+- Individual module tests
+- Integration testing
+
+### 4. Firmware
+- Flash bootloader
+- Upload main firmware
+- Configure settings
+- Load plugins
+- Final testing
+
+### 5. Calibration
+- RF module calibration
+- Display calibration (if touchscreen)
+- Battery monitoring setup
+- Sensor calibration
+
+## Safety Guidelines
+
+**Voltage Safety:**
+- ESP32 is 3.3V only - never apply 5V to GPIO
+- CC1101 and most RF modules are 3.3V only
+- Check component voltage before connecting
+
+**RF Safety:**
+- Use proper antennas for each frequency
+- Don't transmit without antenna (can damage modules)
+- Follow local regulations for RF transmission
+- Keep transmission power appropriate
+
+**Battery Safety:**
+- Use protected 18650 cells
+- Never short-circuit batteries
+- Use proper charging circuit (TP4056)
+- Monitor temperature during charging
+
+**Soldering Safety:**
+- Use proper ventilation
+- Don't breathe solder fumes
+- Use appropriate temperature
+- Let components cool before handling
+
+## Common Build Mistakes
+
+Avoid these common errors:
+
+1. **Missing I2C Pull-ups**: Must use 4.7kΩ resistors (not in typical ELEGOO kits)
+2. **UART Crossover**: TX→RX, RX→TX (crossover required)
+3. **Wrong Voltage**: Applying 5V to 3.3V modules
+4. **Bus Conflicts**: Multiple devices on same CS pin
+5. **No Common Ground**: All components must share ground
+
+## Build Support
+
+### Documentation Resources
+- [Hardware Overview](/docs/hardware) - Complete specifications
+- [Pinout Reference](/docs/hardware/pinout) - Pin assignments
+- [Wiring Diagrams](/docs/hardware/wiring) - Visual guides
+
+### Testing Resources
+- [Testing & Validation](/docs/build-guides/testing) - Test procedures
+- [Troubleshooting](/docs/build-guides/troubleshooting) - Common issues
+
+### Community
+- GitHub Issues - Report problems
+- GitHub Discussions - Ask questions
+- Share your builds!
+
+## Ready to Build?
+
+Choose your build type and get started:
+
+1. **[Touchscreen Build](/docs/build-guides/touchscreen-build)** - Recommended for beginners
+2. **[Minimal Build](/docs/build-guides/minimal-build)** - Learn the basics
+3. **[Full Build](/docs/build-guides/full-build)** - Maximum capabilities
+
+---
+
+*"Step aside, kid. I've got this."* 🦈

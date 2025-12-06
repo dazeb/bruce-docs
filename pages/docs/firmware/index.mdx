@@ -1,0 +1,196 @@
+# Firmware Overview
+
+BRUCE's firmware is built on ESP-IDF and Arduino framework, featuring a modular plugin architecture that allows for dynamic loading of capabilities.
+
+## Firmware Architecture
+
+### Core Components
+
+**FreeRTOS Task System**
+- Multi-threaded operation with priority-based scheduling
+- Dedicated tasks for UART, WiFi, display, and power management
+- Watchdog timers for reliability
+
+**Plugin System**
+- Hot-loadable modules
+- Automatic dependency resolution
+- Conflict detection and prevention
+
+**Power Management**
+- Per-module power control
+- Multiple power states
+- Battery monitoring and protection
+
+**Communication Stack**
+- Binary protocol for Flipper Zero
+- JSON-RPC for complex operations
+- WebSocket for web dashboard
+
+## Task Structure
+
+```c
+// Priority levels (0 = lowest, 7 = highest)
+xTaskCreate(flipper_comm_task,    "Flipper_UART", 4096, NULL, 7, NULL);  // CRITICAL
+xTaskCreate(wifi_manager_task,    "WiFi_Mgr",     8192, NULL, 5, NULL);  // HIGH
+xTaskCreate(display_task,         "Display",      2048, NULL, 3, NULL);  // NORMAL
+xTaskCreate(power_monitor_task,   "Power_Mon",    2048, NULL, 2, NULL);  // NORMAL
+xTaskCreate(log_task,             "Logger",       2048, NULL, 1, NULL);  // LOW
+```
+
+## Plugin System
+
+### Plugin Structure
+
+```c
+typedef struct plugin_t {
+    const char* name;
+    const char* version;
+    esp_err_t (*init)(void);
+    esp_err_t (*start)(void);
+    esp_err_t (*stop)(void);
+    const char** required_modules;
+    esp_err_t (*handle_command)(const char* cmd, const char* args,
+                                char* response, size_t max_len);
+} plugin_t;
+```
+
+### Available Plugins
+
+- **WiFi Scanner**: 2.4GHz and 5GHz scanning
+- **BLE Scanner**: BLE 5.3 device discovery
+- **Sub-GHz**: CC1101 radio operations
+- **LoRa**: Long-range communications
+- **NFC**: Read/write/emulate operations
+- **GPS Logger**: Position tracking
+
+## Communication Protocols
+
+### Flipper Zero UART Protocol
+
+Binary protocol for efficient communication:
+
+```
+START_BYTE (0xAA) | COMMAND | LENGTH | DATA... | CHECKSUM
+```
+
+**Commands:**
+- `0x01`: CMD_PING - Health check
+- `0x02`: CMD_GET_STATUS - Device status
+- `0x03`: CMD_SEND_DATA - Data transfer
+- `0x04`: CMD_START_SCAN - Begin scanning
+- `0x05`: CMD_STOP_SCAN - End scanning
+
+### JSON-RPC Protocol
+
+For complex operations and configuration:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "wifi.scan",
+  "params": {
+    "channel": 6,
+    "duration": 10
+  },
+  "id": 1
+}
+```
+
+## Memory Management
+
+### PSRAM Usage
+
+ESP32-S3 provides 8MB PSRAM for large buffers:
+
+```c
+// Allocate from PSRAM for packet buffers
+uint8_t* packet_buffer = heap_caps_malloc(1024*1024, MALLOC_CAP_SPIRAM);
+```
+
+### Internal RAM
+
+Use internal RAM for time-critical operations:
+
+```c
+// DMA buffers must be in internal RAM
+DMA_ATTR uint8_t dma_buffer[4096];
+```
+
+## Power States
+
+BRUCE supports multiple power states:
+
+- **FULL**: All modules active
+- **WIFI_ONLY**: Only WiFi/BLE active
+- **LOWPOWER**: Essential modules only
+- **SLEEP**: Deep sleep, periodic wake
+- **SHUTDOWN**: Complete power down
+
+## Bruce Personality in Firmware
+
+The firmware embodies Bruce's intimidating personality:
+
+**Boot Messages:**
+```cpp
+"BRUCE online. Big brother ready."
+"All systems armed."
+```
+
+**Status Messages:**
+```cpp
+"Target locked. Too easy."
+"Sweeping all bands..."
+"Nothing escapes me."
+```
+
+**LED Mood Indicators:**
+- BLUE: Armed and waiting
+- GREEN: Target acquired
+- YELLOW: Active hunting
+- RED: Full power transmission
+- PURPLE: Processing data
+- CYAN: Multi-protocol active
+- WHITE: Beast mode
+
+## Development Tools
+
+### Building Firmware
+
+```bash
+cd firmware/esp32_primary
+pio run              # Build
+pio run -t upload    # Upload
+pio device monitor   # Monitor serial
+```
+
+### Debugging
+
+```bash
+# Enable debug logging
+pio run -t clean
+pio run -e debug
+```
+
+### Testing
+
+```bash
+# Run unit tests
+pio test
+
+# Run integration tests
+pio test -e integration
+```
+
+## Firmware Sections
+
+Explore detailed firmware documentation:
+
+- **[Architecture](/docs/firmware/architecture)** - Complete firmware architecture
+- **[Plugin System](/docs/firmware/plugin-system)** - Plugin development guide
+- **[Communication Protocols](/docs/firmware/protocols)** - Protocol specifications
+- **[Development Guide](/docs/firmware/development)** - How to develop for BRUCE
+- **[API Reference](/docs/firmware/api)** - Complete API documentation
+
+---
+
+Ready to start developing? Check out the [Development Guide](/docs/firmware/development).

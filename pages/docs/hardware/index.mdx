@@ -1,0 +1,137 @@
+# Hardware Overview
+
+BRUCE's hardware architecture is designed for reliability, modularity, and professional-grade performance. This section covers all hardware aspects of the BRUCE platform.
+
+## System Architecture
+
+### Multi-Processor Design
+
+BRUCE uses a distributed processor architecture to handle different tasks efficiently:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     BRUCE Hardware System                    │
+├─────────────────────────────────────────────────────────────┤
+│                                                               │
+│  ┌──────────────┐         ┌──────────────┐                  │
+│  │  ESP32-S3    │◄───I2C──►│  ESP32-C6    │                  │
+│  │  (Primary)   │         │  (WiFi 6)    │                  │
+│  └──────┬───────┘         └──────────────┘                  │
+│         │                                                     │
+│         ├─SPI1─► CC1101 #1 (315MHz)                         │
+│         │      ├─ CC1101 #2 (433MHz)                         │
+│         │      └─ CC1101 #3 (915MHz)                         │
+│         │                                                     │
+│         ├─SPI2─► nRF24L01+ (2.4GHz)                         │
+│         │      ├─ SX1276 (LoRa)                              │
+│         │      ├─ W25Q512 (Flash)                            │
+│         │      └─ PN532 (NFC)                                │
+│         │                                                     │
+│         ├─SPI3─► MicroSD Card                                │
+│         │                                                     │
+│         ├─I2C──► Sensors & Peripherals                       │
+│         │      ├─ OLED Display (0x3C)                        │
+│         │      ├─ BME680 (0x76)                              │
+│         │      ├─ MPU9250 (0x68)                             │
+│         │      └─ Battery Monitor (0x36)                     │
+│         │                                                     │
+│         └─UART─► Flipper Zero / GPS                          │
+│                                                               │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Key Hardware Features
+
+### 1. Triple SPI Bus Architecture
+
+The critical innovation solving BFFB's bus conflict issues:
+
+- **SPI1 (Primary)**: Dedicated to Sub-GHz RF modules
+- **SPI2 (Secondary)**: RF modules and storage
+- **SPI3 (Dedicated)**: MicroSD card only
+
+Each bus operates independently with no conflicts.
+
+### 2. RF Capabilities
+
+**Sub-GHz (315/433/868/915MHz)**
+- Triple CC1101 modules for simultaneous multi-frequency operation
+- Range: Up to 500m with proper antennas
+
+**2.4GHz**
+- nRF24L01+ with PA/LNA for long-range (1100m+)
+- WiFi 6 (802.11ax) via ESP32-C6
+- BLE 5.3 long-range scanning
+
+**LoRa**
+- SX1276 module (2-15km range)
+- Meshtastic support for off-grid communications
+
+**NFC/RFID**
+- PN532 module for 13.56MHz operations
+- Read/write/emulate capabilities
+
+### 3. Display Options
+
+**ESP32-2432S028R ("Cheap Yellow Display") - Recommended**
+- 2.8" TFT touchscreen (240×320, 65K colors)
+- ILI9341 driver with XPT2046 touch
+- Built-in ESP32-WROOM-32
+- Lower power consumption (115mA vs 160mA)
+- Huge community support
+
+**OLED SSD1306 - Minimal Build**
+- 0.96" or 1.3" monochrome
+- I2C interface
+- Very low power
+- Good for status display
+
+### 4. Power System
+
+**Battery**
+- 18650 Li-Ion cell (3000mAh recommended)
+- TP4056 charging circuit
+- MAX17048 fuel gauge for monitoring
+
+**Power Budget**
+- Typical: 400-600mA
+- Peak: 800mA+ (all RF modules active)
+- Runtime: 6-8 hours on 3000mAh
+
+**Power Management**
+- Per-module power switching
+- Multiple power states (FULL, WIFI_ONLY, LOWPOWER, SLEEP)
+- Automatic low-battery shutdown
+
+## Voltage Level Safety
+
+**CRITICAL**: ESP32 operates at 3.3V logic levels only.
+
+- All GPIO pins are 3.3V maximum
+- Never apply 5V signals to GPIO pins
+- CC1101, nRF24, and most RF modules are 3.3V only
+- Use level shifters if interfacing with 5V devices
+
+## Hardware Sections
+
+Explore the detailed hardware documentation:
+
+- **[Specifications](/docs/hardware/specifications)** - Complete technical specifications
+- **[Pinout & Bus Architecture](/docs/hardware/pinout)** - Detailed pin assignments
+- **[Bill of Materials](/docs/hardware/bom)** - Complete parts list with sources
+- **[Component Details](/docs/hardware/components)** - Individual component specifications
+- **[Wiring Diagrams](/docs/hardware/wiring)** - Visual wiring guides
+
+## Hardware Design Philosophy
+
+BRUCE's hardware design follows these principles:
+
+1. **Reliability**: Isolated buses prevent conflicts
+2. **Modularity**: Build what you need, expand later
+3. **Professionalism**: Proper power management and protection
+4. **Affordability**: Use readily available components
+5. **Openness**: Complete schematics and documentation
+
+---
+
+Continue to [Specifications](/docs/hardware/specifications) for detailed technical specifications.
